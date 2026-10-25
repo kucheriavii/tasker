@@ -143,6 +143,10 @@ export class TaskStore {
     await firstValueFrom(this.http.post('/api/library', body));
     await this.refreshLibrary();
   }
+  async updateLibraryItem(id: string, patch: Partial<Pick<LibraryItem, 'kind' | 'title' | 'description' | 'sourceUrl' | 'items'>>) {
+    await firstValueFrom(this.http.patch(`/api/library/${id}`, patch));
+    await this.refreshLibrary();
+  }
   async cloneFromLibrary(libId: string): Promise<string> {
     const r = await firstValueFrom(this.http.post<{ id: string }>(`/api/library/${libId}/clone`, {}));
     await this.refresh();

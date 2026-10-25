@@ -2,7 +2,6 @@
   <header>
     <h1 (click)="store.openId.set(null)" style="cursor:pointer">&gt; tasker<span class="cursor">_</span></h1>
     <div class="nav-btns">
-      <button [class.ok]="panel() === 'ai'" (click)="toggle('ai')">[+ ai task]</button>
       <button [class.ok]="panel() === 'import'" (click)="toggle('import')">[import]</button>
       <button [class.ok]="panel() === 'library'" (click)="toggle('library')">[library{{ store.library().length ? ':' + store.library().length : '' }}]</button>
       <button [class.ok]="panel() === 'trash'" (click)="toggle('trash')">[trash{{ store.trash().length ? ':' + store.trash().length : '' }}]</button>
@@ -13,8 +12,7 @@
   @if (store.error()) { <p class="err">! {{ store.error() }}</p> }
 
   @if (panel() === 'library') { <app-library (closed)="panel.set('none')" /> }
-  @if (panel() === 'ai') { <app-import mode="ai" (closed)="panel.set('none')" /> }
-  @if (panel() === 'import') { <app-import mode="import" (closed)="panel.set('none')" /> }
+  @if (panel() === 'import') { <app-import (closed)="panel.set('none')" /> }
 
   @if (panel() === 'statuses') {
     <section class="panel">

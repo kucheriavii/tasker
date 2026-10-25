@@ -14,7 +14,7 @@ import { Progress } from './progress';
 })
 export class App {
   readonly store = inject(TaskStore);
-  readonly panel = signal<'none' | 'statuses' | 'trash' | 'import' | 'ai' | 'library'>('none');
+  readonly panel = signal<'none' | 'statuses' | 'trash' | 'import' | 'library'>('none');
   readonly dragging = signal(false);
   readonly rootDrop = signal(false);
   readonly editTitle = signal(false);
@@ -52,7 +52,7 @@ export class App {
     return window.confirm(msg);
   }
 
-  toggle(p: 'statuses' | 'trash' | 'import' | 'ai' | 'library') {
+  toggle(p: 'statuses' | 'trash' | 'import' | 'library') {
     this.panel.set(this.panel() === p ? 'none' : p);
   }
 

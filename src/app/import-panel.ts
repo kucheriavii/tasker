@@ -1,4 +1,4 @@
-import { Component, inject, input, output, signal } from '@angular/core';
+import { Component, inject, output, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { LibraryItem } from './models';
@@ -9,18 +9,30 @@ interface DraftItem { title: string; description?: string; children: DraftChild[
 interface Draft { title: string; description?: string; items: DraftItem[]; }
 
 /**
- * Generates a structured task tree either:
- * - from a topic you want to learn from scratch (mode = 'ai') -> AI builds ordered branches & subtasks
- * - from a YouTube playlist, book/course link, text TOC, or screenshot (mode = 'import')
+ * Unified [import] panel:
+ * 1) [link / text / screenshot] — YouTube playlist, book/course URL, text TOC, or screenshot
+ * 2) [+ ai task] — generate an ordered study/action task from scratch by topic
+ * Once a task draft is generated in import:
+ * - [+ to my tasks] -> creates task in personal list and deletes draft from import
+ * - [-> to library] -> sends to shared library (no duplicate names) and deletes draft from import
+ * - [delete task]   -> deletes draft from import directly without sending anywhere
  */
 @Component({
   selector: 'app-import',
   template: `
     <section class="panel">
-      <h2># {{ onlyLibrary() ? 'add to library' : mode() === 'ai' ? 'ai task generator (study plan from scratch)' : 'import plan (playlist / book / screenshot)' }}</h2>
+      <div class="head">
+        <div class="tabs">
+          <h2># import</h2>
+          <button [class.ok]="tab() === 'source'" (click)="tab.set('source')">[link / text / screenshot]</button>
+          <button [class.ok]="tab() === 'ai'" (click)="tab.set('ai')">[+ ai task]</button>
+        </div>
+        <button (click)="closed.emit()">[close]</button>
+      </div>
+
       @if (!draft()) {
-        @if (mode() === 'ai') {
-          <p class="hint">don't know where to start? enter any topic or skill (e.g. "Диференціальні рівняння", "iOS Swift") — AI will break it down into an ordered task with stages and subtasks.</p>
+        @if (tab() === 'ai') {
+          <p class="hint">don't know how to study a topic? enter it below (e.g. "Диференціальні рівняння", "iOS Swift") — AI will generate an ordered task with branches and subtasks.</p>
           <input [value]="topic()" (input)="topic.set($any($event.target).value)"
             placeholder="what do you want to learn or accomplish? (e.g. Диференціальні рівняння)..." autofocus
             (keydown.enter)="generateAiTask()" />
@@ -29,8 +41,9 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
             (keydown.enter)="generateAiTask()" />
 
           @if (error()) { <p class="err">! {{ error() }}</p> }
-          <button class="ok" [disabled]="busy()" (click)="generateAiTask()">{{ busy() ? 'generating task...' : 'generate task' }}</button>
-          <button (click)="closed.emit()">cancel</button>
+          <div class="actions">
+            <button class="ok" [disabled]="busy()" (click)="generateAiTask()">{{ busy() ? 'generating task...' : 'generate ai task' }}</button>
+          </div>
         } @else {
           <p class="hint">paste a YouTube playlist link (works without AI key), a book / course page link, or the table of contents text, or drop / paste (Ctrl+V) / pick a screenshot.</p>
           <input [value]="url()" (input)="onUrl($any($event.target).value)" placeholder="https://www.youtube.com/playlist?list=... or book/course URL" />
@@ -47,79 +60,81 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
           </div>
 
           @if (error()) { <p class="err">! {{ error() }}</p> }
-          <button class="ok" [disabled]="busy()" (click)="generate()">{{ busy() ? 'thinking...' : 'generate plan' }}</button>
-          <button (click)="closed.emit()">cancel</button>
+          <div class="actions">
+            <button class="ok" [disabled]="busy()" (click)="generate()">{{ busy() ? 'thinking...' : 'generate plan' }}</button>
+          </div>
         }
       } @else {
-        <p class="hint">review the draft: edit titles, use ^ / v to adjust branch order, or remove what you do not need.</p>
-        <input class="big" [value]="draft()!.title" (input)="draft()!.title = $any($event.target).value" />
-        @if (draft()!.description !== undefined) {
-          <input [value]="draft()!.description || ''" (input)="draft()!.description = $any($event.target).value" placeholder="task description..." />
-        }
+        <div class="draft-box">
+          <div class="draft-head">
+            <span class="hint">imported task draft ({{ count() }} subtasks) — edit, send to tasks/library, or delete:</span>
+            <button class="danger" [disabled]="busy()" (click)="discardDraft()">[delete task]</button>
+          </div>
 
-        <div class="lib-opts">
-          <label>
-            kind:
+          <div class="ditem">
             <select [value]="kind()" (change)="kind.set($any($event.target).value)">
               <option value="book">book</option>
               <option value="playlist">playlist</option>
               <option value="course">course</option>
               <option value="other">other</option>
             </select>
-          </label>
-          @if (!onlyLibrary()) {
-            <label>
-              <input type="checkbox" [checked]="alsoSaveToLibrary()" (change)="alsoSaveToLibrary.set($any($event.target).checked)" />
-              also save to shared library
-            </label>
-          }
-        </div>
-
-        @for (it of draft()!.items; track $index; let i = $index) {
-          <div class="ditem">
-            <span class="step">#{{ i + 1 }}</span>
-            <input [value]="it.title" (input)="it.title = $any($event.target).value" />
-            <button class="icon" [disabled]="i === 0" (click)="move(draft()!.items, i, -1)" title="move up">^</button>
-            <button class="icon" [disabled]="i === draft()!.items.length - 1" (click)="move(draft()!.items, i, 1)" title="move down">v</button>
-            <button class="danger" (click)="removeItem(i)" title="remove">x</button>
+            <input class="big" [value]="draft()!.title" (input)="draft()!.title = $any($event.target).value" placeholder="task title..." />
           </div>
-          @for (c of it.children; track $index; let j = $index) {
-            <div class="ditem sub">
-              <span class="hint">{{ i + 1 }}.{{ j + 1 }}</span>
-              <input [value]="c.title" (input)="c.title = $any($event.target).value" />
-              <button class="icon" [disabled]="j === 0" (click)="move(it.children, j, -1)" title="move up">^</button>
-              <button class="icon" [disabled]="j === it.children.length - 1" (click)="move(it.children, j, 1)" title="move down">v</button>
-              <button class="danger" (click)="removeChild(i, j)" title="remove">x</button>
-            </div>
+
+          @if (draft()!.description !== undefined) {
+            <input [value]="draft()!.description || ''" (input)="draft()!.description = $any($event.target).value" placeholder="task description..." />
           }
-        }
-        @if (error()) { <p class="err">! {{ error() }}</p> }
-        @if (onlyLibrary()) {
-          <button class="ok" [disabled]="busy()" (click)="saveLibraryOnly()">save to library ({{ count() }})</button>
-        } @else {
-          <button class="ok" [disabled]="busy()" (click)="create()">create task ({{ count() }})</button>
-        }
-        <button (click)="draft.set(null)">back</button>
-        <button (click)="closed.emit()">cancel</button>
+
+          @for (it of draft()!.items; track $index; let i = $index) {
+            <div class="ditem">
+              <span class="step">#{{ i + 1 }}</span>
+              <input [value]="it.title" (input)="it.title = $any($event.target).value" />
+              <button class="icon" [disabled]="i === 0" (click)="move(draft()!.items, i, -1)" title="move up">^</button>
+              <button class="icon" [disabled]="i === draft()!.items.length - 1" (click)="move(draft()!.items, i, 1)" title="move down">v</button>
+              <button class="danger" (click)="removeItem(i)" title="remove">x</button>
+            </div>
+            @for (c of it.children; track $index; let j = $index) {
+              <div class="ditem sub">
+                <span class="hint">{{ i + 1 }}.{{ j + 1 }}</span>
+                <input [value]="c.title" (input)="c.title = $any($event.target).value" />
+                <button class="icon" [disabled]="j === 0" (click)="move(it.children, j, -1)" title="move up">^</button>
+                <button class="icon" [disabled]="j === it.children.length - 1" (click)="move(it.children, j, 1)" title="move down">v</button>
+                <button class="danger" (click)="removeChild(i, j)" title="remove">x</button>
+              </div>
+            }
+          }
+
+          @if (error()) { <p class="err">! {{ error() }}</p> }
+
+          <div class="actions">
+            <button class="ok" [disabled]="busy()" (click)="createInMyTasks()">+ to my tasks ({{ count() }})</button>
+            <button class="ok" [disabled]="busy()" (click)="sendToLibrary()">-&gt; to library</button>
+            <button class="danger" [disabled]="busy()" (click)="discardDraft()">delete task</button>
+          </div>
+        </div>
       }
     </section>
   `,
   styles: `
+    .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+    .tabs { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
     input:not([type='checkbox']), textarea { width: 100%; margin: 4px 0; }
     textarea { font: inherit; border: 1px solid var(--line); padding: 8px; background: var(--bg); }
     .shot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border: 1px dashed var(--line); padding: 8px; margin: 6px 0 10px; }
     .shot img { max-width: 160px; max-height: 120px; }
-    .lib-opts { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 6px 0 10px; font-size: 13px; }
+    .draft-box { border-top: 1px dashed var(--line); padding-top: 8px; }
+    .draft-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+    .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
     .ditem { display: flex; gap: 6px; align-items: center; }
     .ditem.sub { margin-left: 24px; }
     .ditem input { flex: 1; min-width: 0; }
     .step { font-size: 12px; font-weight: bold; color: var(--accent); min-width: 22px; }
     .icon { color: var(--muted); font-size: 12px; min-width: 24px; }
     .big { font-weight: bold; font-size: 16px; }
-    .err { color: var(--danger); white-space: pre-wrap; }
+    .err { color: var(--danger); white-space: pre-wrap; margin: 6px 0; }
     .hint { color: var(--muted); font-size: 12px; margin: 4px 0 8px; }
     .panel { border: 1px solid var(--line); background: #fff; padding: 12px; margin-bottom: 16px; }
-    h2 { font-size: 13px; margin: 0 0 4px; }
+    h2 { font-size: 13px; margin: 0; }
     .ok { border-color: var(--accent); color: var(--accent); background: #fff; }
     button.danger:hover { color: var(--danger); }
   `,
@@ -128,16 +143,14 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
 export class ImportPanel {
   private http = inject(HttpClient);
   private store = inject(TaskStore);
-  readonly mode = input<'import' | 'ai'>('import');
-  readonly onlyLibrary = input(false);
   readonly closed = output<void>();
 
+  readonly tab = signal<'source' | 'ai'>('source');
   readonly topic = signal('');
   readonly details = signal('');
   readonly url = signal('');
   readonly text = signal('');
   readonly kind = signal<LibraryItem['kind']>('book');
-  readonly alsoSaveToLibrary = signal(true);
   readonly preview = signal<string | null>(null);
   private image: { base64: string; mime: string } | null = null;
   readonly busy = signal(false);
@@ -162,7 +175,7 @@ export class ImportPanel {
   }
 
   onPaste(e: ClipboardEvent) {
-    if (this.draft() || this.mode() === 'ai') return;
+    if (this.draft() || this.tab() === 'ai') return;
     const f = Array.from(e.clipboardData?.files ?? []).find((x) => x.type.startsWith('image/'));
     if (f) { e.preventDefault(); this.setImage(f); }
   }
@@ -185,6 +198,17 @@ export class ImportPanel {
     r.readAsDataURL(file);
   }
   clearImage() { this.preview.set(null); this.image = null; }
+
+  /** Completely removes the draft task and resets inputs in [import]. */
+  discardDraft() {
+    this.draft.set(null);
+    this.error.set(null);
+    this.url.set('');
+    this.text.set('');
+    this.topic.set('');
+    this.details.set('');
+    this.clearImage();
+  }
 
   private err(e: any, fallback: string) {
     this.error.set(e?.error?.error ?? fallback);
@@ -223,7 +247,8 @@ export class ImportPanel {
   removeItem(i: number) { this.draft()!.items.splice(i, 1); }
   removeChild(i: number, j: number) { this.draft()!.items[i].children.splice(j, 1); }
 
-  async saveLibraryOnly() {
+  /** Sends the draft to Library and deletes it from [import]. */
+  async sendToLibrary() {
     const d = this.draft()!;
     this.error.set(null);
     this.busy.set(true);
@@ -235,27 +260,20 @@ export class ImportPanel {
         sourceUrl: this.url(),
         items: d.items,
       });
-      this.closed.emit();
+      this.discardDraft();
     } catch (e) { this.err(e, 'Could not save to library'); }
     this.busy.set(false);
   }
 
-  async create() {
+  /** Creates the task in personal tasks and deletes it from [import] (without sending to library). */
+  async createInMyTasks() {
     const d = this.draft()!;
     this.error.set(null);
     this.busy.set(true);
     try {
-      if (this.alsoSaveToLibrary()) {
-        await this.store.createLibraryItem({
-          kind: this.kind(),
-          title: d.title,
-          description: d.description,
-          sourceUrl: this.url(),
-          items: d.items,
-        });
-      }
       const r = await firstValueFrom(this.http.post<{ id: string }>('/api/import/create', d));
       await this.store.refresh();
+      this.discardDraft();
       this.store.openId.set(r.id);
       this.closed.emit();
     } catch (e) { this.err(e, 'Could not create tasks'); }

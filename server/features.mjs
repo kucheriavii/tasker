@@ -79,6 +79,10 @@ export function migrateFeatures(db) {
       tree_json TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    DELETE FROM library_items
+    WHERE rowid NOT IN (
+      SELECT MAX(rowid) FROM library_items GROUP BY lower(trim(title))
+    );
   `);
   if (db.prepare('PRAGMA table_info(tasks)').all().some((c) => c.name === 'kind')) {
     db.exec("UPDATE tasks SET kind='task' WHERE kind<>'task'");
@@ -137,9 +141,16 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
     send(res, 204);
   });
 
-  // ---- Shared Library (books, playlists, courses) ----
+  // ---- Shared Library (books, playlists, courses) — unique by title ----
   const countNodes = (items) =>
     (items || []).reduce((n, it) => n + 1 + countNodes(it.children), 0);
+
+  const hasDuplicateName = (title, excludeId = null) => {
+    const row = excludeId
+      ? q('SELECT id FROM library_items WHERE lower(trim(title)) = lower(trim(?)) AND id <> ?').get(title, excludeId)
+      : q('SELECT id FROM library_items WHERE lower(trim(title)) = lower(trim(?))').get(title);
+    return !!row;
+  };
 
   route('GET', '/api/library', (_req, res) => {
     const rows = q('SELECT id,kind,title,description,source_url,tree_json,created_at FROM library_items ORDER BY created_at DESC, rowid DESC').all();
@@ -162,18 +173,43 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
 
   route('POST', '/api/library', async (req, res) => {
     const { kind = 'book', title = '', description = '', sourceUrl = '', items = [] } = await readJson(req);
-    if (!title.trim()) return send(res, 400, { error: 'title required' });
+    const cleanTitle = title.trim();
+    if (!cleanTitle) return send(res, 400, { error: 'title required' });
+    if (hasDuplicateName(cleanTitle)) {
+      return send(res, 409, { error: `"${cleanTitle}" is already in the library (duplicate names are not allowed).` });
+    }
     const id = randomUUID();
     q('INSERT INTO library_items (id,kind,title,description,source_url,tree_json) VALUES (?,?,?,?,?,?)').run(
-      id, kind, title.trim(), description.trim(), sourceUrl.trim(), JSON.stringify(items || []),
+      id, kind, cleanTitle, description.trim(), sourceUrl.trim(), JSON.stringify(items || []),
     );
     send(res, 201, { id });
+  });
+
+  route('PATCH', '/api/library/:id', async (req, res, { id }) => {
+    const existing = q('SELECT id,kind,title,description,source_url,tree_json FROM library_items WHERE id=?').get(id);
+    if (!existing) return send(res, 404, { error: 'library item not found' });
+    const b = await readJson(req);
+    const title = ('title' in b ? String(b.title).trim() : existing.title) || existing.title;
+    if (hasDuplicateName(title, id)) {
+      return send(res, 409, { error: `"${title}" is already in the library (duplicate names are not allowed).` });
+    }
+    const kind = 'kind' in b ? String(b.kind) : existing.kind;
+    const description = 'description' in b ? String(b.description).trim() : existing.description;
+    const sourceUrl = 'sourceUrl' in b ? String(b.sourceUrl).trim() : existing.source_url;
+    const treeJson = 'items' in b ? JSON.stringify(b.items || []) : existing.tree_json;
+    q('UPDATE library_items SET kind=?, title=?, description=?, source_url=?, tree_json=? WHERE id=?').run(
+      kind, title, description, sourceUrl, treeJson, id,
+    );
+    send(res, 204);
   });
 
   route('POST', '/api/library/from-task/:id', async (req, res, { id }) => {
     const { kind = 'book', sourceUrl = '' } = await readJson(req);
     const root = q('SELECT id,title,description FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
     if (!root) return send(res, 404, { error: 'task not found' });
+    if (hasDuplicateName(root.title)) {
+      return send(res, 409, { error: `"${root.title}" is already in the library (duplicate names are not allowed).` });
+    }
     const buildChildren = (pid) =>
       q('SELECT id,title,description FROM tasks WHERE parent_id=? AND deleted_at IS NULL ORDER BY pos')
         .all(pid)
@@ -181,7 +217,7 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
     const items = buildChildren(root.id);
     const libId = randomUUID();
     q('INSERT INTO library_items (id,kind,title,description,source_url,tree_json) VALUES (?,?,?,?,?,?)').run(
-      libId, kind, root.title, root.description || '', sourceUrl.trim(), JSON.stringify(items),
+      libId, kind, root.title.trim(), root.description || '', sourceUrl.trim(), JSON.stringify(items),
     );
     send(res, 201, { id: libId });
   });

@@ -95,18 +95,18 @@ export function registerImport({ route, send, readBody, readJson, q, tx, nextPos
   });
 
   route('POST', '/api/import/create', async (req, res) => {
-    const { title = '', items = [] } = await readJson(req);
+    const { title = '', description = '', items = [] } = await readJson(req);
     if (!title.trim()) return send(res, 400, { error: 'title required' });
     const st = q('SELECT id FROM statuses ORDER BY pos LIMIT 1').get();
-    const ins = q('INSERT INTO tasks (id,parent_id,title,status_id,pos) VALUES (?,?,?,?,?)');
+    const ins = q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos) VALUES (?,?,?,?,?,?)');
     const id = tx(() => {
       const rootId = randomUUID();
-      ins.run(rootId, null, title.trim(), st.id, nextPos('tasks', 'parent_id IS NULL'));
-      const add = (list, parent) => list.forEach((it, i) => {
+      ins.run(rootId, null, title.trim(), String(description ?? '').trim(), st.id, nextPos('tasks', 'parent_id IS NULL'));
+      const add = (list, parent) => (list || []).forEach((it, i) => {
         const t = String(it?.title ?? '').trim();
         if (!t) return;
         const cid = randomUUID();
-        ins.run(cid, parent, t, st.id, i);
+        ins.run(cid, parent, t, String(it?.description ?? '').trim(), st.id, i);
         if (Array.isArray(it.children)) add(it.children, cid);
       });
       add(items, rootId);

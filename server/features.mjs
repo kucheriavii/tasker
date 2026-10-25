@@ -1,64 +1,50 @@
-// Drag & drop move, shared Library (books/playlists/courses repository), and AI Roadmaps.
+// Drag & drop move, shared Library (books/playlists/courses repository), and AI Task Generator.
 import { randomUUID } from 'node:crypto';
 
 const fail = (msg, status = 400) => Object.assign(new Error(msg), { status });
 
-const ROADMAP_SCHEMA = {
+const AI_TASK_SCHEMA = {
   type: 'OBJECT',
   properties: {
     title: { type: 'STRING' },
     description: { type: 'STRING' },
-    stages: {
+    items: {
       type: 'ARRAY',
       items: {
         type: 'OBJECT',
         properties: {
           title: { type: 'STRING' },
           description: { type: 'STRING' },
-          branches: {
+          children: {
             type: 'ARRAY',
             items: {
               type: 'OBJECT',
               properties: {
                 title: { type: 'STRING' },
                 description: { type: 'STRING' },
-                skills: {
-                  type: 'ARRAY',
-                  items: {
-                    type: 'OBJECT',
-                    properties: {
-                      title: { type: 'STRING' },
-                      description: { type: 'STRING' },
-                    },
-                    required: ['title'],
-                  },
-                },
               },
-              required: ['title', 'skills'],
+              required: ['title'],
             },
           },
         },
-        required: ['title', 'branches'],
+        required: ['title', 'children'],
       },
     },
   },
-  required: ['title', 'description', 'stages'],
+  required: ['title', 'description', 'items'],
 };
 
-async function generateRoadmap({ topic, details }) {
+async function generateAiTask({ topic, details }) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw fail('GEMINI_API_KEY is not set in .env', 400);
   const prompt =
-    'You are an expert curriculum architect. Build a practical, strictly ordered skill tree (roadmap) for mastering the given subject or profession.\n' +
-    'CRITICAL: The order of stages and branches is the exact learning path the student must follow step by step (prerequisites first).\n' +
-    'Structure:\n' +
-    '- "title": concise roadmap title in the same language as the user request\n' +
-    '- "description": 1-2 sentences explaining the learning strategy and branch order\n' +
-    '- "stages": 3 to 6 sequential stages (from foundations to advanced/practice). Do NOT prefix titles with numbers (the UI numbers them).\n' +
-    '- Inside each stage, "branches": 2 to 4 ordered branches of skills that must be studied in that order.\n' +
-    '- Inside each branch, "skills": 3 to 6 concrete topics, theorems, techniques, or practical tasks, each with a short helpful "description" (what to focus on).\n' +
-    `TOPIC: ${topic}\n` +
-    (details ? `EXTRA DETAILS / LEVEL: ${details}\n` : '');
+    'You are an expert mentor. The user wants to learn or accomplish a topic from scratch and needs a clear, step-by-step task breakdown.\n' +
+    'Build a structured task tree in the exact order it must be studied/completed (prerequisites first):\n' +
+    '- "title": concise root task title (in the same language as the user request)\n' +
+    '- "description": short overview of how to approach this goal\n' +
+    '- "items": 4 to 7 sequential sections/stages in strict learning order (e.g. "1. ...", "2. ..."), each with a short "description" and 3 to 6 concrete "children" subtasks (topics, exercises, or steps to complete) with brief helpful descriptions.\n' +
+    `TOPIC / GOAL: ${topic}\n` +
+    (details ? `EXTRA CONTEXT / LEVEL: ${details}\n` : '');
 
   const r = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || 'gemini-2.5-flash'}:generateContent`,
@@ -67,7 +53,7 @@ async function generateRoadmap({ topic, details }) {
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: 'application/json', responseSchema: ROADMAP_SCHEMA, temperature: 0.25 },
+        generationConfig: { responseMimeType: 'application/json', responseSchema: AI_TASK_SCHEMA, temperature: 0.25 },
       }),
       signal: AbortSignal.timeout(90000),
     },
@@ -83,9 +69,6 @@ async function generateRoadmap({ topic, details }) {
 }
 
 export function migrateFeatures(db) {
-  if (!db.prepare('PRAGMA table_info(tasks)').all().some((c) => c.name === 'kind')) {
-    db.exec("ALTER TABLE tasks ADD COLUMN kind TEXT NOT NULL DEFAULT 'task'");
-  }
   db.exec(`
     CREATE TABLE IF NOT EXISTS library_items (
       id TEXT PRIMARY KEY,
@@ -97,13 +80,16 @@ export function migrateFeatures(db) {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+  if (db.prepare('PRAGMA table_info(tasks)').all().some((c) => c.name === 'kind')) {
+    db.exec("UPDATE tasks SET kind='task' WHERE kind<>'task'");
+  }
 }
 
 export function registerFeatures({ route, send, readJson, q, tx, nextPos, descendants }) {
   // ---- Drag & Drop move / reparent / reorder ----
   route('POST', '/api/tasks/:id/move', async (req, res, { id }) => {
     const { targetId = null, mode = 'after' } = await readJson(req);
-    const task = q('SELECT id,parent_id,kind FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
+    const task = q('SELECT id,parent_id FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
     if (!task) return send(res, 404, { error: 'task not found' });
     if (targetId === id) return send(res, 204);
 
@@ -119,23 +105,21 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
         if (!target) throw fail('target not found', 404);
         q('UPDATE tasks SET collapsed=0 WHERE id=?').run(targetId);
         const pos = nextPos('tasks', 'parent_id=?', targetId);
-        q("UPDATE tasks SET parent_id=?, pos=?, kind='task' WHERE id=?").run(targetId, pos, id);
+        q('UPDATE tasks SET parent_id=?, pos=? WHERE id=?').run(targetId, pos, id);
         return;
       }
 
       let newParentId = null;
-      let newKind = task.kind;
       if (targetId) {
-        const target = q('SELECT id,parent_id,kind FROM tasks WHERE id=? AND deleted_at IS NULL').get(targetId);
+        const target = q('SELECT id,parent_id FROM tasks WHERE id=? AND deleted_at IS NULL').get(targetId);
         if (!target) throw fail('target not found', 404);
         newParentId = target.parent_id;
-        newKind = newParentId ? 'task' : target.kind;
       }
 
       const siblings = (
         newParentId
           ? q('SELECT id FROM tasks WHERE parent_id=? AND deleted_at IS NULL AND id<>? ORDER BY pos').all(newParentId, id)
-          : q('SELECT id FROM tasks WHERE parent_id IS NULL AND kind=? AND deleted_at IS NULL AND id<>? ORDER BY pos').all(newKind, id)
+          : q('SELECT id FROM tasks WHERE parent_id IS NULL AND deleted_at IS NULL AND id<>? ORDER BY pos').all(id)
       ).map((r) => r.id);
 
       const idx = targetId ? siblings.indexOf(targetId) : -1;
@@ -145,7 +129,7 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
         siblings.splice(mode === 'before' ? idx : idx + 1, 0, id);
       }
 
-      q('UPDATE tasks SET parent_id=?, kind=? WHERE id=?').run(newParentId, newKind, id);
+      q('UPDATE tasks SET parent_id=? WHERE id=?').run(newParentId, id);
       const upd = q('UPDATE tasks SET pos=? WHERE id=?');
       siblings.forEach((sid, i) => upd.run(i, sid));
     });
@@ -207,17 +191,17 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
     if (!lib) return send(res, 404, { error: 'library item not found' });
     const items = JSON.parse(lib.tree_json || '[]');
     const st = q('SELECT id FROM statuses ORDER BY pos LIMIT 1').get();
-    const ins = q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind) VALUES (?,?,?,?,?,?,?)');
+    const ins = q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos) VALUES (?,?,?,?,?,?)');
     const rootId = tx(() => {
       const rid = randomUUID();
       const desc = [lib.description, lib.source_url ? `Source: ${lib.source_url}` : ''].filter(Boolean).join('\n');
-      ins.run(rid, null, lib.title, desc, st.id, nextPos('tasks', "parent_id IS NULL AND kind='task'"), 'task');
+      ins.run(rid, null, lib.title, desc, st.id, nextPos('tasks', 'parent_id IS NULL'));
       const add = (list, parent) =>
         (list || []).forEach((it, i) => {
           const t = String(it?.title ?? '').trim();
           if (!t) return;
           const cid = randomUUID();
-          ins.run(cid, parent, t, String(it?.description ?? '').trim(), st.id, i, 'task');
+          ins.run(cid, parent, t, String(it?.description ?? '').trim(), st.id, i);
           if (Array.isArray(it.children)) add(it.children, cid);
         });
       add(items, rid);
@@ -231,40 +215,10 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
     send(res, 204);
   });
 
-  // ---- Roadmaps (ordered skill tree) ----
-  route('POST', '/api/roadmaps/generate', async (req, res) => {
+  // ---- AI Task Generator ("не знаю як це вчити -> згенеруй мені таску") ----
+  route('POST', '/api/ai-task/generate', async (req, res) => {
     const { topic = '', details = '' } = await readJson(req);
-    if (!topic.trim()) return send(res, 400, { error: 'Enter a topic or profession' });
-    send(res, 200, await generateRoadmap({ topic: topic.trim(), details: details.trim() }));
-  });
-
-  route('POST', '/api/roadmaps', async (req, res) => {
-    const { title = '', description = '', stages = [] } = await readJson(req);
-    if (!title.trim()) return send(res, 400, { error: 'title required' });
-    const st = q('SELECT id FROM statuses ORDER BY pos LIMIT 1').get();
-    const ins = q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind) VALUES (?,?,?,?,?,?,?)');
-    const id = tx(() => {
-      const rootId = randomUUID();
-      ins.run(rootId, null, title.trim(), description.trim(), st.id, nextPos('tasks', "parent_id IS NULL AND kind='roadmap'"), 'roadmap');
-      (stages || []).forEach((stage, si) => {
-        const stTitle = String(stage?.title ?? '').trim();
-        if (!stTitle) return;
-        const stageId = randomUUID();
-        ins.run(stageId, rootId, stTitle, String(stage?.description ?? '').trim(), st.id, si, 'task');
-        (stage.branches || []).forEach((branch, bi) => {
-          const brTitle = String(branch?.title ?? '').trim();
-          if (!brTitle) return;
-          const branchId = randomUUID();
-          ins.run(branchId, stageId, brTitle, String(branch?.description ?? '').trim(), st.id, bi, 'task');
-          (branch.skills || []).forEach((sk, ki) => {
-            const skTitle = String(sk?.title ?? '').trim();
-            if (!skTitle) return;
-            ins.run(randomUUID(), branchId, skTitle, String(sk?.description ?? '').trim(), st.id, ki, 'task');
-          });
-        });
-      });
-      return rootId;
-    });
-    send(res, 201, { id });
+    if (!topic.trim()) return send(res, 400, { error: 'Enter what you want to learn or do' });
+    send(res, 200, await generateAiTask({ topic: topic.trim(), details: details.trim() }));
   });
 }

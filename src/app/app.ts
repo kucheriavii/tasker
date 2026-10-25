@@ -2,21 +2,19 @@ import { Component, ElementRef, effect, inject, signal, viewChild } from '@angul
 import { TaskItem } from './task-item';
 import { ImportPanel } from './import-panel';
 import { LibraryPanel } from './library-panel';
-import { RoadmapView } from './roadmap-view';
 import { TaskStore } from './task-store';
 import { Progress } from './progress';
 
 @Component({
   selector: 'app-root',
-  imports: [TaskItem, Progress, ImportPanel, LibraryPanel, RoadmapView],
+  imports: [TaskItem, Progress, ImportPanel, LibraryPanel],
   templateUrl: './app.html',
   styleUrl: './app.css',
   host: { '(window:paste)': 'onPaste($event)' },
 })
 export class App {
   readonly store = inject(TaskStore);
-  readonly view = signal<'tasks' | 'roadmaps'>('tasks');
-  readonly panel = signal<'none' | 'statuses' | 'trash' | 'import' | 'library'>('none');
+  readonly panel = signal<'none' | 'statuses' | 'trash' | 'import' | 'ai' | 'library'>('none');
   readonly dragging = signal(false);
   readonly rootDrop = signal(false);
   readonly editTitle = signal(false);
@@ -30,11 +28,6 @@ export class App {
       this.editTitle.set(false);
       this.editDesc.set(false);
     });
-  }
-
-  switchView(v: 'tasks' | 'roadmaps') {
-    this.view.set(v);
-    this.store.openId.set(null);
   }
 
   resetSubtasks(id: string, statusId: string, name: string) {
@@ -59,7 +52,7 @@ export class App {
     return window.confirm(msg);
   }
 
-  toggle(p: 'statuses' | 'trash' | 'import' | 'library') {
+  toggle(p: 'statuses' | 'trash' | 'import' | 'ai' | 'library') {
     this.panel.set(this.panel() === p ? 'none' : p);
   }
 

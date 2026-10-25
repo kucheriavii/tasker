@@ -1,13 +1,10 @@
 <main>
   <header>
-    <div class="brand">
-      <h1 (click)="store.openId.set(null)" style="cursor:pointer">&gt; tasker<span class="cursor">_</span></h1>
-      <button [class.ok]="view() === 'tasks' && !store.open()" (click)="switchView('tasks')">[tasks]</button>
-      <button [class.ok]="view() === 'roadmaps' && !store.open()" (click)="switchView('roadmaps')">[roadmaps{{ store.roadmaps().length ? ':' + store.roadmaps().length : '' }}]</button>
-    </div>
+    <h1 (click)="store.openId.set(null)" style="cursor:pointer">&gt; tasker<span class="cursor">_</span></h1>
     <div class="nav-btns">
-      <button [class.ok]="panel() === 'library'" (click)="toggle('library')">[library{{ store.library().length ? ':' + store.library().length : '' }}]</button>
+      <button [class.ok]="panel() === 'ai'" (click)="toggle('ai')">[+ ai task]</button>
       <button [class.ok]="panel() === 'import'" (click)="toggle('import')">[import]</button>
+      <button [class.ok]="panel() === 'library'" (click)="toggle('library')">[library{{ store.library().length ? ':' + store.library().length : '' }}]</button>
       <button [class.ok]="panel() === 'trash'" (click)="toggle('trash')">[trash{{ store.trash().length ? ':' + store.trash().length : '' }}]</button>
       <button [class.ok]="panel() === 'statuses'" (click)="toggle('statuses')">[statuses]</button>
     </div>
@@ -16,7 +13,8 @@
   @if (store.error()) { <p class="err">! {{ store.error() }}</p> }
 
   @if (panel() === 'library') { <app-library (closed)="panel.set('none')" /> }
-  @if (panel() === 'import') { <app-import (closed)="panel.set('none')" /> }
+  @if (panel() === 'ai') { <app-import mode="ai" (closed)="panel.set('none')" /> }
+  @if (panel() === 'import') { <app-import mode="import" (closed)="panel.set('none')" /> }
 
   @if (panel() === 'statuses') {
     <section class="panel">
@@ -60,7 +58,7 @@
   @if (store.open(); as t) {
     <!-- ===== task detail ===== -->
     <nav class="crumbs">
-      <button (click)="store.openId.set(null)">~ {{ view() }}</button>
+      <button (click)="store.openId.set(null)">~</button>
       @for (b of store.breadcrumbs(); track b.id) {
         / <button (click)="store.openId.set(b.id)" [disabled]="b.id === t.id">{{ b.title }}</button>
       }
@@ -133,8 +131,6 @@
         <input #sub placeholder="new subtask, press enter..." />
       </form>
     </section>
-  } @else if (view() === 'roadmaps') {
-    <app-roadmaps />
   } @else {
     <form class="add" (submit)="$event.preventDefault(); store.addTask(null, t.value); t.value = ''">
       <input #t placeholder="new task, press enter..." />

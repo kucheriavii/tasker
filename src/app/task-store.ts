@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { ApiData, LibraryItem, RoadmapDraft, Status, Task, TaskRow } from './models';
+import { ApiData, LibraryItem, Status, Task, TaskRow } from './models';
 
 /**
  * Thin client over the SQLite-backed REST API (server/server.mjs).
@@ -15,7 +15,7 @@ export class TaskStore {
   readonly library = signal<LibraryItem[]>([]);
   readonly loaded = signal(false);
   readonly error = signal<string | null>(null);
-  /** Task currently opened in the detail view (null = list/roadmap view). */
+  /** Task currently opened in the detail view (null = root list). */
   readonly openId = signal<string | null>(null);
   /** Currently dragged task ID for Drag & Drop. */
   readonly draggedId = signal<string | null>(null);
@@ -23,10 +23,9 @@ export class TaskStore {
   readonly statuses = computed(() => this.data().statuses);
   private doneIds = computed(() => new Set(this.statuses().filter((s) => s.done).map((s) => s.id)));
   private cancelledIds = computed(() => new Set(this.statuses().filter((s) => s.cancelled).map((s) => s.id)));
-  private activeIds = computed(() => new Set(this.statuses().filter((s) => s.active).map((s) => s.id)));
 
-  /** Full forest of non-deleted root items (both regular tasks and roadmaps). */
-  private readonly allRoots = computed<Task[]>(() => {
+  /** Forest of non-deleted tasks, with progress computed. */
+  readonly tree = computed<Task[]>(() => {
     const done = this.doneIds();
     const cancelled = this.cancelledIds();
     const rows = this.data().tasks.filter((t) => !t.deletedAt);
@@ -50,18 +49,10 @@ export class TaskStore {
     return (byParent.get(null) ?? []).map(build);
   });
 
-  /** Regular tasks tree. */
-  readonly tree = computed<Task[]>(() =>
-    this.allRoots().filter((t) => (t.kind ?? 'task') === 'task'));
-
-  /** Skill-tree Roadmaps. */
-  readonly roadmaps = computed<Task[]>(() =>
-    this.allRoots().filter((t) => t.kind === 'roadmap'));
-
   private index = computed(() => {
     const m = new Map<string, Task>();
     const walk = (l: Task[]) => l.forEach((t) => { m.set(t.id, t); walk(t.children); });
-    walk(this.allRoots());
+    walk(this.tree());
     return m;
   });
 
@@ -90,7 +81,6 @@ export class TaskStore {
 
   isDone(statusId: string): boolean { return this.doneIds().has(statusId); }
   isCancelled(statusId: string): boolean { return this.cancelledIds().has(statusId); }
-  isActive(statusId: string): boolean { return this.activeIds().has(statusId); }
 
   async refresh() {
     try {
@@ -161,16 +151,6 @@ export class TaskStore {
   async deleteLibraryItem(libId: string) {
     await firstValueFrom(this.http.delete(`/api/library/${libId}`));
     await this.refreshLibrary();
-  }
-
-  // ---- Roadmaps ----
-  generateRoadmapDraft(topic: string, details = ''): Promise<RoadmapDraft> {
-    return firstValueFrom(this.http.post<RoadmapDraft>('/api/roadmaps/generate', { topic, details }));
-  }
-  async createRoadmap(draft: RoadmapDraft): Promise<string> {
-    const r = await firstValueFrom(this.http.post<{ id: string }>('/api/roadmaps', draft));
-    await this.refresh();
-    return r.id;
   }
 
   // ---- images ----

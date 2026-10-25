@@ -88,10 +88,10 @@ function getData() {
   const byTask = new Map();
   for (const i of imgs) (byTask.get(i.task_id) ?? byTask.set(i.task_id, []).get(i.task_id)).push(i.id);
   const tasks = q(
-    'SELECT id,parent_id,title,description,status_id,collapsed,deleted_at,kind FROM tasks ORDER BY pos',
+    'SELECT id,parent_id,title,description,status_id,collapsed,deleted_at FROM tasks ORDER BY pos',
   ).all().map((t) => ({
     id: t.id, parentId: t.parent_id, title: t.title, description: t.description,
-    statusId: t.status_id, collapsed: !!t.collapsed, deletedAt: t.deleted_at, kind: t.kind || 'task',
+    statusId: t.status_id, collapsed: !!t.collapsed, deletedAt: t.deleted_at,
     imageIds: byTask.get(t.id) ?? [],
   }));
   return { statuses, tasks };

@@ -18,7 +18,6 @@ export interface TaskRow {
   statusId: string;
   collapsed: boolean;
   deletedAt: string | null;
-  kind?: 'task' | 'roadmap';
   imageIds: string[];
 }
 
@@ -51,18 +50,4 @@ export interface LibraryItem {
   createdAt: string;
   totalItems: number;
   items: LibraryNode[];
-}
-
-export interface RoadmapDraft {
-  title: string;
-  description: string;
-  stages: {
-    title: string;
-    description: string;
-    branches: {
-      title: string;
-      description: string;
-      skills: { title: string; description: string }[];
-    }[];
-  }[];
 }

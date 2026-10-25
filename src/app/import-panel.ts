@@ -4,36 +4,58 @@ import { firstValueFrom } from 'rxjs';
 import { LibraryItem } from './models';
 import { TaskStore } from './task-store';
 
-interface DraftItem { title: string; children: { title: string }[]; }
-interface Draft { title: string; items: DraftItem[]; }
+interface DraftChild { title: string; description?: string; }
+interface DraftItem { title: string; description?: string; children: DraftChild[]; }
+interface Draft { title: string; description?: string; items: DraftItem[]; }
 
-/** "Screenshot / link / text of a table of contents -> draft plan -> tasks or shared library". */
+/**
+ * Generates a structured task tree either:
+ * - from a topic you want to learn from scratch (mode = 'ai') -> AI builds ordered branches & subtasks
+ * - from a YouTube playlist, book/course link, text TOC, or screenshot (mode = 'import')
+ */
 @Component({
   selector: 'app-import',
   template: `
     <section class="panel">
-      <h2># {{ onlyLibrary() ? 'add to library (book / playlist / course)' : 'import plan' }}</h2>
+      <h2># {{ onlyLibrary() ? 'add to library' : mode() === 'ai' ? 'ai task generator (study plan from scratch)' : 'import plan (playlist / book / screenshot)' }}</h2>
       @if (!draft()) {
-        <p class="hint">paste a YouTube playlist link (works without AI key), a book / course page link, or the table of contents text, or drop / paste (Ctrl+V) / pick a screenshot.</p>
-        <input [value]="url()" (input)="onUrl($any($event.target).value)" placeholder="https://www.youtube.com/playlist?list=... or book/course URL" />
-        <textarea rows="5" [value]="text()" (input)="text.set($any($event.target).value)" placeholder="...or paste table of contents here"></textarea>
+        @if (mode() === 'ai') {
+          <p class="hint">don't know where to start? enter any topic or skill (e.g. "Диференціальні рівняння", "iOS Swift") — AI will break it down into an ordered task with stages and subtasks.</p>
+          <input [value]="topic()" (input)="topic.set($any($event.target).value)"
+            placeholder="what do you want to learn or accomplish? (e.g. Диференціальні рівняння)..." autofocus
+            (keydown.enter)="generateAiTask()" />
+          <input [value]="details()" (input)="details.set($any($event.target).value)"
+            placeholder="optional: your level or goal (e.g. з нуля до прикладних задач)..."
+            (keydown.enter)="generateAiTask()" />
 
-        <div class="shot" (dragover)="$event.preventDefault()" (drop)="onDrop($event)">
-          @if (preview()) {
-            <img [src]="preview()" alt="" /> <button (click)="clearImage()">remove</button>
-          } @else {
-            <span class="hint">screenshot: drop here, Ctrl+V, or</span>
-            <button (click)="f.click()">[pick file]</button>
-          }
-          <input #f type="file" accept="image/*" hidden (change)="onPick(f)" />
-        </div>
+          @if (error()) { <p class="err">! {{ error() }}</p> }
+          <button class="ok" [disabled]="busy()" (click)="generateAiTask()">{{ busy() ? 'generating task...' : 'generate task' }}</button>
+          <button (click)="closed.emit()">cancel</button>
+        } @else {
+          <p class="hint">paste a YouTube playlist link (works without AI key), a book / course page link, or the table of contents text, or drop / paste (Ctrl+V) / pick a screenshot.</p>
+          <input [value]="url()" (input)="onUrl($any($event.target).value)" placeholder="https://www.youtube.com/playlist?list=... or book/course URL" />
+          <textarea rows="5" [value]="text()" (input)="text.set($any($event.target).value)" placeholder="...or paste table of contents here"></textarea>
 
-        @if (error()) { <p class="err">! {{ error() }}</p> }
-        <button class="ok" [disabled]="busy()" (click)="generate()">{{ busy() ? 'thinking...' : 'generate plan' }}</button>
-        <button (click)="closed.emit()">cancel</button>
+          <div class="shot" (dragover)="$event.preventDefault()" (drop)="onDrop($event)">
+            @if (preview()) {
+              <img [src]="preview()" alt="" /> <button (click)="clearImage()">remove</button>
+            } @else {
+              <span class="hint">screenshot: drop here, Ctrl+V, or</span>
+              <button (click)="f.click()">[pick file]</button>
+            }
+            <input #f type="file" accept="image/*" hidden (change)="onPick(f)" />
+          </div>
+
+          @if (error()) { <p class="err">! {{ error() }}</p> }
+          <button class="ok" [disabled]="busy()" (click)="generate()">{{ busy() ? 'thinking...' : 'generate plan' }}</button>
+          <button (click)="closed.emit()">cancel</button>
+        }
       } @else {
-        <p class="hint">review the draft: edit titles, remove what you do not need.</p>
+        <p class="hint">review the draft: edit titles, use ^ / v to adjust branch order, or remove what you do not need.</p>
         <input class="big" [value]="draft()!.title" (input)="draft()!.title = $any($event.target).value" />
+        @if (draft()!.description !== undefined) {
+          <input [value]="draft()!.description || ''" (input)="draft()!.description = $any($event.target).value" placeholder="task description..." />
+        }
 
         <div class="lib-opts">
           <label>
@@ -55,12 +77,18 @@ interface Draft { title: string; items: DraftItem[]; }
 
         @for (it of draft()!.items; track $index; let i = $index) {
           <div class="ditem">
+            <span class="step">#{{ i + 1 }}</span>
             <input [value]="it.title" (input)="it.title = $any($event.target).value" />
+            <button class="icon" [disabled]="i === 0" (click)="move(draft()!.items, i, -1)" title="move up">^</button>
+            <button class="icon" [disabled]="i === draft()!.items.length - 1" (click)="move(draft()!.items, i, 1)" title="move down">v</button>
             <button class="danger" (click)="removeItem(i)" title="remove">x</button>
           </div>
           @for (c of it.children; track $index; let j = $index) {
             <div class="ditem sub">
+              <span class="hint">{{ i + 1 }}.{{ j + 1 }}</span>
               <input [value]="c.title" (input)="c.title = $any($event.target).value" />
+              <button class="icon" [disabled]="j === 0" (click)="move(it.children, j, -1)" title="move up">^</button>
+              <button class="icon" [disabled]="j === it.children.length - 1" (click)="move(it.children, j, 1)" title="move down">v</button>
               <button class="danger" (click)="removeChild(i, j)" title="remove">x</button>
             </div>
           }
@@ -69,7 +97,7 @@ interface Draft { title: string; items: DraftItem[]; }
         @if (onlyLibrary()) {
           <button class="ok" [disabled]="busy()" (click)="saveLibraryOnly()">save to library ({{ count() }})</button>
         } @else {
-          <button class="ok" [disabled]="busy()" (click)="create()">create tasks ({{ count() }})</button>
+          <button class="ok" [disabled]="busy()" (click)="create()">create task ({{ count() }})</button>
         }
         <button (click)="draft.set(null)">back</button>
         <button (click)="closed.emit()">cancel</button>
@@ -85,6 +113,8 @@ interface Draft { title: string; items: DraftItem[]; }
     .ditem { display: flex; gap: 6px; align-items: center; }
     .ditem.sub { margin-left: 24px; }
     .ditem input { flex: 1; min-width: 0; }
+    .step { font-size: 12px; font-weight: bold; color: var(--accent); min-width: 22px; }
+    .icon { color: var(--muted); font-size: 12px; min-width: 24px; }
     .big { font-weight: bold; font-size: 16px; }
     .err { color: var(--danger); white-space: pre-wrap; }
     .hint { color: var(--muted); font-size: 12px; margin: 4px 0 8px; }
@@ -98,9 +128,12 @@ interface Draft { title: string; items: DraftItem[]; }
 export class ImportPanel {
   private http = inject(HttpClient);
   private store = inject(TaskStore);
+  readonly mode = input<'import' | 'ai'>('import');
   readonly onlyLibrary = input(false);
   readonly closed = output<void>();
 
+  readonly topic = signal('');
+  readonly details = signal('');
   readonly url = signal('');
   readonly text = signal('');
   readonly kind = signal<LibraryItem['kind']>('book');
@@ -122,8 +155,14 @@ export class ImportPanel {
     return d ? d.items.reduce((n, i) => n + 1 + i.children.length, 0) : 0;
   }
 
+  move<T>(arr: T[], i: number, dir: -1 | 1) {
+    const j = i + dir;
+    if (j < 0 || j >= arr.length) return;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+
   onPaste(e: ClipboardEvent) {
-    if (this.draft()) return;
+    if (this.draft() || this.mode() === 'ai') return;
     const f = Array.from(e.clipboardData?.files ?? []).find((x) => x.type.startsWith('image/'));
     if (f) { e.preventDefault(); this.setImage(f); }
   }
@@ -151,6 +190,22 @@ export class ImportPanel {
     this.error.set(e?.error?.error ?? fallback);
   }
 
+  async generateAiTask() {
+    if (!this.topic().trim()) return;
+    this.error.set(null);
+    this.busy.set(true);
+    try {
+      const d = await firstValueFrom(this.http.post<Draft>('/api/ai-task/generate', {
+        topic: this.topic(),
+        details: this.details(),
+      }));
+      this.kind.set('course');
+      d.items = (d.items ?? []).map((i) => ({ title: i.title, description: i.description, children: i.children ?? [] }));
+      this.draft.set(d);
+    } catch (e) { this.err(e, 'Request failed'); }
+    this.busy.set(false);
+  }
+
   async generate() {
     this.error.set(null);
     this.busy.set(true);
@@ -159,7 +214,7 @@ export class ImportPanel {
         url: this.url(), text: this.text(),
         imageBase64: this.image?.base64, imageMime: this.image?.mime,
       }));
-      d.items = (d.items ?? []).map((i) => ({ title: i.title, children: i.children ?? [] }));
+      d.items = (d.items ?? []).map((i) => ({ title: i.title, description: i.description, children: i.children ?? [] }));
       this.draft.set(d);
     } catch (e) { this.err(e, 'Request failed'); }
     this.busy.set(false);
@@ -176,6 +231,7 @@ export class ImportPanel {
       await this.store.createLibraryItem({
         kind: this.kind(),
         title: d.title,
+        description: d.description,
         sourceUrl: this.url(),
         items: d.items,
       });
@@ -193,6 +249,7 @@ export class ImportPanel {
         await this.store.createLibraryItem({
           kind: this.kind(),
           title: d.title,
+          description: d.description,
           sourceUrl: this.url(),
           items: d.items,
         });

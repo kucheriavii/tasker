@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, ElementRef, effect, inject, signal, viewChild } from '@angular/core';
 import { TaskItem } from './task-item';
 import { TaskStore } from './task-store';
 import { Progress } from './progress';
@@ -14,6 +14,18 @@ export class App {
   readonly store = inject(TaskStore);
   readonly panel = signal<'none' | 'statuses' | 'trash'>('none');
   readonly dragging = signal(false);
+  readonly editTitle = signal(false);
+  readonly editDesc = signal(false);
+  readonly descBox = viewChild<ElementRef<HTMLTextAreaElement>>('dd');
+
+  constructor() {
+    // leave edit modes when navigating to another task
+    effect(() => {
+      this.store.openId();
+      this.editTitle.set(false);
+      this.editDesc.set(false);
+    });
+  }
 
   confirm(msg: string) {
     return window.confirm(msg);
@@ -47,9 +59,11 @@ export class App {
   saveTitle(id: string, current: string, v: string) {
     v = v.trim();
     if (v && v !== current) this.store.updateTask(id, { title: v });
+    this.editTitle.set(false);
   }
 
   saveDescription(id: string, current: string, v: string) {
     if (v !== current) this.store.updateTask(id, { description: v });
+    this.editDesc.set(false);
   }
 }

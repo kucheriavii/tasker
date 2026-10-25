@@ -39,3 +39,8 @@ input:not([type='checkbox']), select {
   border-radius: 0;
 }
 input:focus, select:focus { outline: 1px solid var(--accent); }
+
+@media (max-width: 640px) {
+  :root { font-size: 15px; }
+  input:not([type='checkbox']), select, textarea { font-size: 16px; } /* avoids iOS zoom on focus */
+}

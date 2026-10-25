@@ -38,3 +38,21 @@ textarea:focus { outline: 1px solid var(--accent); }
 .imgs figure { margin: 0; position: relative; border: 1px solid var(--line); }
 .imgs img { display: block; max-width: 200px; max-height: 160px; }
 .imgs figure button { position: absolute; top: 2px; right: 2px; background: #fff; border-color: var(--line); }
+
+.drow { align-items: center; flex-wrap: wrap; }
+.drow h1.big { margin: 0; word-break: break-word; }
+.drow input.big { min-width: 0; }
+.desc { white-space: pre-wrap; word-break: break-word; margin: 4px 0 8px; }
+h2 button { margin-left: 8px; font-size: 12px; }
+button.ok { border-color: var(--accent); color: var(--accent); background: #fff; }
+.drow button, .srow button { white-space: nowrap; }
+
+@media (max-width: 640px) {
+  main { padding: 12px 10px 60px; }
+  .detail { padding: 10px; }
+  .srow { flex-wrap: wrap; }
+  .imgs figure { flex: 1 1 100%; }
+  .imgs img { max-width: 100%; max-height: none; width: 100%; }
+  button { min-height: 36px; min-width: 40px; }
+  header button { min-width: 0; }
+}

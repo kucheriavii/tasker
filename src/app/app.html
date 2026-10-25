@@ -58,7 +58,13 @@
     <section class="detail" [class.drag]="dragging()"
       (dragover)="$event.preventDefault(); dragging.set(true)" (dragleave)="dragging.set(false)" (drop)="onDrop($event)">
       <div class="drow" [class.done]="store.isDone(t.statusId)">
-        <input class="big" [value]="t.title" (change)="saveTitle(t.id, t.title, $any($event.target).value)" />
+        @if (editTitle()) {
+          <input #tt class="big" [value]="t.title" autofocus (keydown.enter)="saveTitle(t.id, t.title, tt.value)" />
+          <button class="ok" (click)="saveTitle(t.id, t.title, tt.value)">ok</button>
+        } @else {
+          <h1 class="big">{{ t.title }}</h1>
+          <button (click)="editTitle.set(true)">edit</button>
+        }
         <select [value]="t.statusId" (change)="store.updateTask(t.id, { statusId: $any($event.target).value })">
           @for (s of store.statuses(); track s.id) {
             <option [value]="s.id" [selected]="s.id === t.statusId">{{ s.name }}</option>
@@ -71,9 +77,15 @@
         <span class="hint">{{ t.leafDone }}/{{ t.leafTotal }} {{ t.children.length ? 'leaf tasks done' : 'this task' }}</span>
       </div>
 
-      <h2># description</h2>
-      <textarea rows="6" placeholder="description (saved on blur)..." [value]="t.description"
-        (blur)="saveDescription(t.id, t.description, $any($event.target).value)"></textarea>
+      <h2># description
+        @if (editDesc()) { <button class="ok" (click)="saveDescription(t.id, t.description, descBox()?.nativeElement?.value ?? t.description)">ok</button> }
+        @else { <button (click)="editDesc.set(true)">edit</button> }
+      </h2>
+      @if (editDesc()) {
+        <textarea #dd rows="6" autofocus placeholder="description..." [value]="t.description"></textarea>
+      } @else {
+        <p class="desc">{{ t.description || '(empty)' }}</p>
+      }
 
       <h2># images</h2>
       <div class="imgs">

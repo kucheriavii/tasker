@@ -2,12 +2,15 @@
   <header>
     <h1>&gt; tasker<span class="cursor">_</span></h1>
     <div>
+      <button (click)="toggle('import')">[import]</button>
       <button (click)="toggle('trash')">[trash{{ store.trash().length ? ':' + store.trash().length : '' }}]</button>
       <button (click)="toggle('statuses')">[statuses]</button>
     </div>
   </header>
 
   @if (store.error()) { <p class="err">! {{ store.error() }}</p> }
+
+  @if (panel() === 'import') { <app-import (closed)="panel.set('none')" /> }
 
   @if (panel() === 'statuses') {
     <section class="panel">

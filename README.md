@@ -15,3 +15,12 @@ Personal nested task tracker: Angular UI + zero-dependency Node API with SQLite 
 ```n
 Open http://localhost:4200.
 
+
+## Import plan from a table of contents (AI)
+
+Header button `[import]`: paste a link, text of a table of contents, or a screenshot (drop / Ctrl+V). Gemini turns it into a draft (title + chapters/lessons), you edit it and press *create tasks*.
+
+1. Get a key: https://aistudio.google.com/apikey
+2. Copy `.env.example` to `.env`, set `GEMINI_API_KEY`, restart `npm start`.
+
+Note: Udemy blocks automatic page loading (HTTP 403), so for Udemy paste the curriculum text or a screenshot.

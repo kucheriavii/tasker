@@ -1,12 +1,22 @@
 // Zero-dependency API server: node:http + built-in node:sqlite (Node >= 22.5).
 import http from 'node:http';
 import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { registerImport } from './ai-import.mjs';
 
+// minimal .env loader (no dependencies); must run before ai-import reads process.env
+const envFile = join(dirname(fileURLToPath(import.meta.url)), '..', '.env');
+if (existsSync(envFile)) {
+  for (const line of readFileSync(envFile, 'utf8').split(/\r?\n/)) {
+    const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/.exec(line);
+    if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  }
+}
 const here = dirname(fileURLToPath(import.meta.url));
+
 const dataDir = process.env.TASKER_DATA_DIR || join(here, 'data');
 mkdirSync(dataDir, { recursive: true });
 const PORT = Number(process.env.PORT) || 3000;
@@ -221,6 +231,8 @@ route('DELETE', '/api/statuses/:id', (_r, res, { id }) => {
   });
   send(res, 204);
 });
+
+registerImport({ route, send, readBody, readJson, q, tx, nextPos, maxBody: MAX_IMAGE * 2 });
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');

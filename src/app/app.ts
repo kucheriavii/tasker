@@ -1,18 +1,19 @@
 import { Component, ElementRef, effect, inject, signal, viewChild } from '@angular/core';
 import { TaskItem } from './task-item';
+import { ImportPanel } from './import-panel';
 import { TaskStore } from './task-store';
 import { Progress } from './progress';
 
 @Component({
   selector: 'app-root',
-  imports: [TaskItem, Progress],
+  imports: [TaskItem, Progress, ImportPanel],
   templateUrl: './app.html',
   styleUrl: './app.css',
   host: { '(window:paste)': 'onPaste($event)' },
 })
 export class App {
   readonly store = inject(TaskStore);
-  readonly panel = signal<'none' | 'statuses' | 'trash'>('none');
+  readonly panel = signal<'none' | 'statuses' | 'trash' | 'import'>('none');
   readonly dragging = signal(false);
   readonly editTitle = signal(false);
   readonly editDesc = signal(false);
@@ -31,7 +32,7 @@ export class App {
     return window.confirm(msg);
   }
 
-  toggle(p: 'statuses' | 'trash') {
+  toggle(p: 'statuses' | 'trash' | 'import') {
     this.panel.set(this.panel() === p ? 'none' : p);
   }
 

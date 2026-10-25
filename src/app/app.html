@@ -1,20 +1,25 @@
 <main>
   <header>
     <h1>&gt; tasker<span class="cursor">_</span></h1>
-    <button (click)="showSettings.set(!showSettings())">[{{ showSettings() ? 'close' : 'statuses' }}]</button>
+    <div>
+      <button (click)="toggle('trash')">[trash{{ store.trash().length ? ':' + store.trash().length : '' }}]</button>
+      <button (click)="toggle('statuses')">[statuses]</button>
+    </div>
   </header>
 
-  @if (showSettings()) {
-    <section class="settings">
+  @if (store.error()) { <p class="err">! {{ store.error() }}</p> }
+
+  @if (panel() === 'statuses') {
+    <section class="panel">
       <h2># statuses</h2>
-      <p class="hint">first = default for new tasks. check "done" = task is struck through.</p>
-      @for (s of store.state().statuses; track s.id; let i = $index) {
+      <p class="hint">first = default for new tasks. check "done" = task is struck through and counts in progress.</p>
+      @for (s of store.statuses(); track s.id; let i = $index) {
         <div class="srow">
           <input [value]="s.name" (change)="store.updateStatus(s.id, { name: $any($event.target).value.trim() || s.name })" />
           <label><input type="checkbox" [checked]="s.done" (change)="store.updateStatus(s.id, { done: $any($event.target).checked })" /> done</label>
           <button class="icon" [disabled]="i === 0" (click)="store.moveStatus(s.id, -1)">^</button>
-          <button class="icon" [disabled]="i === store.state().statuses.length - 1" (click)="store.moveStatus(s.id, 1)">v</button>
-          <button class="icon danger" [disabled]="store.state().statuses.length <= 1" (click)="store.removeStatus(s.id)">x</button>
+          <button class="icon" [disabled]="i === store.statuses().length - 1" (click)="store.moveStatus(s.id, 1)">v</button>
+          <button class="icon danger" [disabled]="store.statuses().length <= 1" (click)="store.removeStatus(s.id)">x</button>
         </div>
       }
       <form class="add" (submit)="$event.preventDefault(); store.addStatus(st.value); st.value = ''">
@@ -23,15 +28,89 @@
     </section>
   }
 
-  <form class="add" (submit)="$event.preventDefault(); store.addTask(null, t.value); t.value = ''">
-    <input #t placeholder="new task, press enter..." />
-  </form>
+  @if (panel() === 'trash') {
+    <section class="panel">
+      <h2># trash</h2>
+      @for (t of store.trash(); track t.id) {
+        <div class="srow">
+          <span class="grow">{{ t.title }} <span class="hint">{{ t.deletedAt }}</span></span>
+          <button (click)="store.restoreTask(t.id)">restore</button>
+          <button class="danger" (click)="confirm('Delete forever?') && store.purgeTask(t.id)">purge</button>
+        </div>
+      } @empty {
+        <p class="hint">trash is empty.</p>
+      }
+      @if (store.trash().length) {
+        <button class="danger" (click)="confirm('Empty trash? This cannot be undone.') && store.emptyTrash()">[empty trash]</button>
+      }
+    </section>
+  }
 
-  <section class="tree">
-    @for (task of store.state().tasks; track task.id) {
-      <app-task-item [task]="task" />
-    } @empty {
-      <p class="hint">no tasks yet.</p>
-    }
-  </section>
+  @if (store.open(); as t) {
+    <!-- ===== task detail ===== -->
+    <nav class="crumbs">
+      <button (click)="store.openId.set(null)">~</button>
+      @for (b of store.breadcrumbs(); track b.id) {
+        / <button (click)="store.openId.set(b.id)" [disabled]="b.id === t.id">{{ b.title }}</button>
+      }
+    </nav>
+
+    <section class="detail" [class.drag]="dragging()"
+      (dragover)="$event.preventDefault(); dragging.set(true)" (dragleave)="dragging.set(false)" (drop)="onDrop($event)">
+      <div class="drow" [class.done]="store.isDone(t.statusId)">
+        <input class="big" [value]="t.title" (change)="saveTitle(t.id, t.title, $any($event.target).value)" />
+        <select [value]="t.statusId" (change)="store.updateTask(t.id, { statusId: $any($event.target).value })">
+          @for (s of store.statuses(); track s.id) {
+            <option [value]="s.id" [selected]="s.id === t.statusId">{{ s.name }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="prog">
+        <app-progress [value]="t.progress" [done]="t.leafDone" [total]="t.leafTotal" />
+        <span class="hint">{{ t.leafDone }}/{{ t.leafTotal }} {{ t.children.length ? 'leaf tasks done' : 'this task' }}</span>
+      </div>
+
+      <h2># description</h2>
+      <textarea rows="6" placeholder="description (saved on blur)..." [value]="t.description"
+        (blur)="saveDescription(t.id, t.description, $any($event.target).value)"></textarea>
+
+      <h2># images</h2>
+      <div class="imgs">
+        @for (id of t.imageIds; track id) {
+          <figure>
+            <a [href]="store.imageUrl(id)" target="_blank"><img [src]="store.imageUrl(id)" alt="" loading="lazy" /></a>
+            <button class="danger" (click)="confirm('Delete image?') && store.removeImage(id)">x</button>
+          </figure>
+        }
+      </div>
+      <p class="hint">
+        drop files here, paste (Ctrl+V), or
+        <button (click)="f.click()">[add image]</button>
+        <input #f type="file" accept="image/*" multiple hidden (change)="onFiles(f)" />
+      </p>
+
+      <h2># subtasks</h2>
+      @for (c of t.children; track c.id) {
+        <app-task-item [task]="c" />
+      } @empty {
+        <p class="hint">no subtasks.</p>
+      }
+      <form class="add" (submit)="$event.preventDefault(); store.addTask(t.id, sub.value); sub.value = ''">
+        <input #sub placeholder="new subtask, press enter..." />
+      </form>
+    </section>
+  } @else {
+    <form class="add" (submit)="$event.preventDefault(); store.addTask(null, t.value); t.value = ''">
+      <input #t placeholder="new task, press enter..." />
+    </form>
+
+    <section class="tree">
+      @for (task of store.tree(); track task.id) {
+        <app-task-item [task]="task" />
+      } @empty {
+        @if (store.loaded()) { <p class="hint">no tasks yet.</p> }
+      }
+    </section>
+  }
 </main>

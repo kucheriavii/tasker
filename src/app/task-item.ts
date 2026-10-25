@@ -1,10 +1,12 @@
 import { Component, inject, input, signal } from '@angular/core';
 import { Task } from './models';
 import { TaskStore } from './task-store';
+import { Progress } from './progress';
 
 /** Recursive node: renders a task and its subtasks (unlimited depth). */
 @Component({
   selector: 'app-task-item',
+  imports: [Progress],
   template: `
     <div class="row" [class.done]="store.isDone(task().statusId)">
       <button class="icon" (click)="toggle()" [style.visibility]="task().children.length ? 'visible' : 'hidden'"
@@ -19,13 +21,19 @@ import { TaskStore } from './task-store';
         <span class="title" (dblclick)="editing.set(true)" title="double-click to edit">{{ task().title }}</span>
       }
 
+      @if (task().description) { <span class="badge" title="has description">=</span> }
+      @if (task().imageIds.length) { <span class="badge" title="images">img:{{ task().imageIds.length }}</span> }
+
+      <app-progress [value]="task().progress" [done]="task().leafDone" [total]="task().leafTotal" />
+
       <select [value]="task().statusId" (change)="setStatus($any($event.target).value)">
-        @for (s of store.state().statuses; track s.id) {
+        @for (s of store.statuses(); track s.id) {
           <option [value]="s.id" [selected]="s.id === task().statusId">{{ s.name }}</option>
         }
       </select>
+      <button class="icon" (click)="store.openId.set(task().id)" title="open task">open</button>
       <button class="icon" (click)="adding.set(!adding())" title="add subtask">+sub</button>
-      <button class="icon danger" (click)="remove()" title="delete">x</button>
+      <button class="icon danger" (click)="store.removeTask(task().id)" title="move to trash">x</button>
     </div>
 
     @if (adding()) {
@@ -48,6 +56,7 @@ import { TaskStore } from './task-store';
     .title { flex: 1; cursor: text; word-break: break-word; }
     .title-edit { flex: 1; }
     .row.done .title { text-decoration: line-through; color: var(--muted); }
+    .badge { font-size: 11px; color: var(--muted); }
     .icon { color: var(--muted); font-size: 12px; min-width: 24px; }
     .icon.danger:hover { color: var(--danger); }
     select { max-width: 130px; }
@@ -76,10 +85,5 @@ export class TaskItem {
   }
   addChild(title: string) {
     this.store.addTask(this.task().id, title);
-  }
-  remove() {
-    const n = this.task().children.length;
-    if (n && !confirm(`Delete task and ${n} direct subtask(s)?`)) return;
-    this.store.removeTask(this.task().id);
   }
 }

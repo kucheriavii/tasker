@@ -2,17 +2,39 @@ main { max-width: 860px; margin: 0 auto; padding: 24px 16px 80px; }
 
 header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 h1 { font-size: 20px; margin: 0; }
-h2 { font-size: 14px; margin: 0 0 4px; }
+h2 { font-size: 13px; margin: 16px 0 4px; }
 .cursor { color: var(--accent); animation: blink 1s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 
 .hint { color: var(--muted); font-size: 12px; margin: 4px 0 8px; }
+.err { color: var(--danger); }
+.grow { flex: 1; }
+button.danger:hover:not(:disabled) { color: var(--danger); }
 
 .add { margin: 8px 0; }
 .add input { width: 100%; }
 
-.settings { border: 1px solid var(--line); background: #fff; padding: 12px; margin-bottom: 16px; }
+.panel { border: 1px solid var(--line); background: #fff; padding: 12px; margin-bottom: 16px; }
+.panel h2 { margin-top: 0; }
 .srow { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
 .srow input:not([type='checkbox']) { flex: 1; }
 
 .tree { margin-top: 12px; }
+
+.crumbs { margin-bottom: 8px; color: var(--muted); }
+.crumbs button { padding: 0 4px; color: var(--accent); }
+.crumbs button:disabled { opacity: 1; color: var(--fg); }
+
+.detail { border: 1px solid var(--line); background: #fff; padding: 16px; }
+.detail.drag { outline: 2px dashed var(--accent); }
+.drow { display: flex; gap: 8px; }
+.drow .big { flex: 1; font-size: 18px; font-weight: bold; }
+.drow.done .big { text-decoration: line-through; color: var(--muted); }
+.prog { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+textarea { width: 100%; font: inherit; border: 1px solid var(--line); padding: 8px; resize: vertical; background: var(--bg); }
+textarea:focus { outline: 1px solid var(--accent); }
+
+.imgs { display: flex; flex-wrap: wrap; gap: 8px; }
+.imgs figure { margin: 0; position: relative; border: 1px solid var(--line); }
+.imgs img { display: block; max-width: 200px; max-height: 160px; }
+.imgs figure button { position: absolute; top: 2px; right: 2px; background: #fff; border-color: var(--line); }

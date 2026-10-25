@@ -1,131 +1,132 @@
-import { Injectable, signal, effect } from '@angular/core';
-import { AppState, Status, Task } from './models';
-
-const KEY = 'tasker.v1';
-
-const DEFAULT_STATE: AppState = {
-  statuses: [
-    { id: 's-todo', name: 'todo', done: false },
-    { id: 's-doing', name: 'in progress', done: false },
-    { id: 's-blocked', name: 'blocked', done: false },
-    { id: 's-done', name: 'done', done: true },
-  ],
-  tasks: [],
-};
-
-const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
+import { ApiData, Status, Task, TaskRow } from './models';
 
 /**
- * Plain-data state + pure-ish mutations, persisted to localStorage.
- * Kept framework-light so the model/logic ports easily to Swift later.
+ * Thin client over the SQLite-backed REST API (server/server.mjs).
+ * Server is the source of truth; every mutation re-fetches the state.
  */
 @Injectable({ providedIn: 'root' })
 export class TaskStore {
-  readonly state = signal<AppState>(this.load());
+  private http = inject(HttpClient);
 
-  constructor() {
-    effect(() => localStorage.setItem(KEY, JSON.stringify(this.state())));
-  }
+  readonly data = signal<ApiData>({ statuses: [], tasks: [] });
+  readonly loaded = signal(false);
+  readonly error = signal<string | null>(null);
+  /** Task currently opened in the detail view (null = root list). */
+  readonly openId = signal<string | null>(null);
 
-  private load(): AppState {
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) return JSON.parse(raw) as AppState;
-    } catch {}
-    return structuredClone(DEFAULT_STATE);
-  }
+  readonly statuses = computed(() => this.data().statuses);
+  private doneIds = computed(() => new Set(this.statuses().filter((s) => s.done).map((s) => s.id)));
 
-  private mutate(fn: (s: AppState) => void) {
-    const next = structuredClone(this.state());
-    fn(next);
-    this.state.set(next);
-  }
-
-  private find(list: Task[], id: string): { list: Task[]; index: number } | null {
-    for (let i = 0; i < list.length; i++) {
-      if (list[i].id === id) return { list, index: i };
-      const r = this.find(list[i].children, id);
-      if (r) return r;
+  /** Forest of non-deleted tasks, with progress computed. */
+  readonly tree = computed<Task[]>(() => {
+    const done = this.doneIds();
+    const rows = this.data().tasks.filter((t) => !t.deletedAt);
+    const byParent = new Map<string | null, TaskRow[]>();
+    for (const r of rows) {
+      const k = r.parentId;
+      (byParent.get(k) ?? byParent.set(k, []).get(k)!).push(r);
     }
-    return null;
+    const build = (r: TaskRow): Task => {
+      const children = (byParent.get(r.id) ?? []).map(build);
+      let leafTotal = 0, leafDone = 0;
+      if (children.length) {
+        for (const c of children) { leafTotal += c.leafTotal; leafDone += c.leafDone; }
+      } else {
+        leafTotal = 1;
+        leafDone = done.has(r.statusId) ? 1 : 0;
+      }
+      return { ...r, children, leafTotal, leafDone, progress: leafTotal ? leafDone / leafTotal : 0 };
+    };
+    return (byParent.get(null) ?? []).map(build);
+  });
+
+  private index = computed(() => {
+    const m = new Map<string, Task>();
+    const walk = (l: Task[]) => l.forEach((t) => { m.set(t.id, t); walk(t.children); });
+    walk(this.tree());
+    return m;
+  });
+
+  /** Trashed tasks (flat, newest first). */
+  readonly trash = computed<TaskRow[]>(() =>
+    this.data().tasks.filter((t) => t.deletedAt).sort((a, b) => b.deletedAt!.localeCompare(a.deletedAt!)));
+
+  readonly open = computed<Task | null>(() => {
+    const id = this.openId();
+    return id ? (this.index().get(id) ?? null) : null;
+  });
+
+  /** Path from root to the opened task (inclusive). */
+  readonly breadcrumbs = computed<Task[]>(() => {
+    const idx = this.index();
+    const out: Task[] = [];
+    let cur = this.open();
+    while (cur) { out.unshift(cur); cur = cur.parentId ? idx.get(cur.parentId) ?? null : null; }
+    return out;
+  });
+
+  constructor() { this.refresh(); }
+
+  isDone(statusId: string): boolean { return this.doneIds().has(statusId); }
+
+  async refresh() {
+    try {
+      this.data.set(await firstValueFrom(this.http.get<ApiData>('/api/data')));
+      this.error.set(null);
+    } catch {
+      this.error.set('API is not reachable. Start it with: npm start');
+    }
+    this.loaded.set(true);
   }
 
-  isDone(statusId: string): boolean {
-    return !!this.state().statuses.find((s) => s.id === statusId)?.done;
+  private async call(p: Promise<unknown>) {
+    try { await p; } catch { this.error.set('request failed'); }
+    await this.refresh();
   }
 
   addTask(parentId: string | null, title: string) {
-    title = title.trim();
-    if (!title) return;
-    this.mutate((s) => {
-      const t: Task = {
-        id: uid(),
-        title,
-        statusId: s.statuses[0]?.id ?? '',
-        collapsed: false,
-        children: [],
-      };
-      if (parentId === null) s.tasks.push(t);
-      else {
-        const r = this.find(s.tasks, parentId);
-        if (r) {
-          const p = r.list[r.index];
-          p.children.push(t);
-          p.collapsed = false;
-        }
-      }
-    });
+    if (!title.trim()) return;
+    return this.call(firstValueFrom(this.http.post('/api/tasks', { parentId, title })));
   }
-
-  updateTask(id: string, patch: Partial<Pick<Task, 'title' | 'statusId' | 'collapsed'>>) {
-    this.mutate((s) => {
-      const r = this.find(s.tasks, id);
-      if (r) Object.assign(r.list[r.index], patch);
-    });
+  updateTask(id: string, patch: Partial<Pick<Task, 'title' | 'description' | 'statusId' | 'collapsed'>>) {
+    return this.call(firstValueFrom(this.http.patch(`/api/tasks/${id}`, patch)));
   }
-
+  /** Moves task (with subtree) to trash. */
   removeTask(id: string) {
-    this.mutate((s) => {
-      const r = this.find(s.tasks, id);
-      if (r) r.list.splice(r.index, 1);
-    });
+    if (this.openId() === id || this.breadcrumbs().some((b) => b.id === id)) {
+      this.openId.set(this.index().get(id)?.parentId ?? null);
+    }
+    return this.call(firstValueFrom(this.http.delete(`/api/tasks/${id}`)));
   }
+  restoreTask(id: string) { return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/restore`, {}))); }
+  purgeTask(id: string) { return this.call(firstValueFrom(this.http.delete(`/api/trash/${id}`))); }
+  emptyTrash() { return this.call(firstValueFrom(this.http.delete('/api/trash'))); }
+
+  // ---- images ----
+  async addImages(taskId: string, files: File[]) {
+    for (const f of files) {
+      if (!f.type.startsWith('image/')) continue;
+      try {
+        await firstValueFrom(this.http.post(`/api/tasks/${taskId}/images?name=${encodeURIComponent(f.name)}`, f,
+          { headers: { 'Content-Type': f.type } }));
+      } catch { this.error.set(`upload failed: ${f.name}`); }
+    }
+    await this.refresh();
+  }
+  removeImage(id: string) { return this.call(firstValueFrom(this.http.delete(`/api/images/${id}`))); }
+  imageUrl(id: string) { return `/api/images/${id}`; }
 
   // ---- statuses ----
   addStatus(name: string) {
-    name = name.trim();
-    if (!name) return;
-    this.mutate((s) => s.statuses.push({ id: uid(), name, done: false }));
+    if (!name.trim()) return;
+    return this.call(firstValueFrom(this.http.post('/api/statuses', { name })));
   }
-
   updateStatus(id: string, patch: Partial<Pick<Status, 'name' | 'done'>>) {
-    this.mutate((s) => {
-      const st = s.statuses.find((x) => x.id === id);
-      if (st) Object.assign(st, patch);
-    });
+    return this.call(firstValueFrom(this.http.patch(`/api/statuses/${id}`, patch)));
   }
-
-  moveStatus(id: string, dir: -1 | 1) {
-    this.mutate((s) => {
-      const i = s.statuses.findIndex((x) => x.id === id);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= s.statuses.length) return;
-      [s.statuses[i], s.statuses[j]] = [s.statuses[j], s.statuses[i]];
-    });
-  }
-
-  /** Removes a status; its tasks fall back to the first remaining status. Last status can't be removed. */
-  removeStatus(id: string) {
-    this.mutate((s) => {
-      if (s.statuses.length <= 1) return;
-      s.statuses = s.statuses.filter((x) => x.id !== id);
-      const fallback = s.statuses[0].id;
-      const walk = (list: Task[]) =>
-        list.forEach((t) => {
-          if (t.statusId === id) t.statusId = fallback;
-          walk(t.children);
-        });
-      walk(s.tasks);
-    });
-  }
+  moveStatus(id: string, dir: -1 | 1) { return this.call(firstValueFrom(this.http.post(`/api/statuses/${id}/move`, { dir }))); }
+  removeStatus(id: string) { return this.call(firstValueFrom(this.http.delete(`/api/statuses/${id}`))); }
 }

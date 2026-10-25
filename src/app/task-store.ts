@@ -19,10 +19,12 @@ export class TaskStore {
 
   readonly statuses = computed(() => this.data().statuses);
   private doneIds = computed(() => new Set(this.statuses().filter((s) => s.done).map((s) => s.id)));
+  private cancelledIds = computed(() => new Set(this.statuses().filter((s) => s.cancelled).map((s) => s.id)));
 
   /** Forest of non-deleted tasks, with progress computed. */
   readonly tree = computed<Task[]>(() => {
     const done = this.doneIds();
+    const cancelled = this.cancelledIds();
     const rows = this.data().tasks.filter((t) => !t.deletedAt);
     const byParent = new Map<string | null, TaskRow[]>();
     for (const r of rows) {
@@ -35,8 +37,9 @@ export class TaskStore {
       if (children.length) {
         for (const c of children) { leafTotal += c.leafTotal; leafDone += c.leafDone; }
       } else {
-        leafTotal = 1;
-        leafDone = done.has(r.statusId) ? 1 : 0;
+        const skip = cancelled.has(r.statusId); // cancelled leaves don't count
+        leafTotal = skip ? 0 : 1;
+        leafDone = !skip && done.has(r.statusId) ? 1 : 0;
       }
       return { ...r, children, leafTotal, leafDone, progress: leafTotal ? leafDone / leafTotal : 0 };
     };
@@ -71,6 +74,7 @@ export class TaskStore {
   constructor() { this.refresh(); }
 
   isDone(statusId: string): boolean { return this.doneIds().has(statusId); }
+  isCancelled(statusId: string): boolean { return this.cancelledIds().has(statusId); }
 
   async refresh() {
     try {
@@ -124,7 +128,7 @@ export class TaskStore {
     if (!name.trim()) return;
     return this.call(firstValueFrom(this.http.post('/api/statuses', { name })));
   }
-  updateStatus(id: string, patch: Partial<Pick<Status, 'name' | 'done'>>) {
+  updateStatus(id: string, patch: Partial<Pick<Status, 'name' | 'done' | 'cancelled'>>) {
     return this.call(firstValueFrom(this.http.patch(`/api/statuses/${id}`, patch)));
   }
   moveStatus(id: string, dir: -1 | 1) { return this.call(firstValueFrom(this.http.post(`/api/statuses/${id}/move`, { dir }))); }

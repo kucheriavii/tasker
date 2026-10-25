@@ -42,10 +42,18 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_images_task ON images(task_id);
 `);
 
+// migration: statuses.cancelled (excluded from progress)
+if (!db.prepare('PRAGMA table_info(statuses)').all().some((c) => c.name === 'cancelled')) {
+  db.exec('ALTER TABLE statuses ADD COLUMN cancelled INTEGER NOT NULL DEFAULT 0');
+  if (db.prepare('SELECT COUNT(*) c FROM statuses').get().c > 0) {
+    db.prepare('INSERT INTO statuses (id,name,done,pos,cancelled) VALUES (?,?,0,(SELECT COALESCE(MAX(pos),-1)+1 FROM statuses),1)').run(randomUUID(), 'cancelled');
+  }
+}
+
 if (db.prepare('SELECT COUNT(*) c FROM statuses').get().c === 0) {
-  const ins = db.prepare('INSERT INTO statuses (id,name,done,pos) VALUES (?,?,?,?)');
-  [['todo', 0], ['in progress', 0], ['blocked', 0], ['done', 1]].forEach(([n, d], i) =>
-    ins.run(randomUUID(), n, d, i));
+  const ins = db.prepare('INSERT INTO statuses (id,name,done,pos,cancelled) VALUES (?,?,?,?,?)');
+  [['todo', 0, 0], ['in progress', 0, 0], ['blocked', 0, 0], ['done', 1, 0], ['cancelled', 0, 1]].forEach(([n, d, c], i) =>
+    ins.run(randomUUID(), n, d, i, c));
 }
 
 const q = (sql) => db.prepare(sql);
@@ -57,8 +65,8 @@ const nextPos = (table, where = '1=1', ...args) =>
   (q(`SELECT COALESCE(MAX(pos),-1)+1 p FROM ${table} WHERE ${where}`).get(...args).p);
 
 function getData() {
-  const statuses = q('SELECT id,name,done FROM statuses ORDER BY pos').all()
-    .map((s) => ({ ...s, done: !!s.done }));
+  const statuses = q('SELECT id,name,done,cancelled FROM statuses ORDER BY pos').all()
+    .map((s) => ({ ...s, done: !!s.done, cancelled: !!s.cancelled }));
   const imgs = q('SELECT id,task_id FROM images ORDER BY created_at, rowid').all();
   const byTask = new Map();
   for (const i of imgs) (byTask.get(i.task_id) ?? byTask.set(i.task_id, []).get(i.task_id)).push(i.id);
@@ -188,7 +196,9 @@ route('POST', '/api/statuses', async (req, res) => {
 route('PATCH', '/api/statuses/:id', async (req, res, { id }) => {
   const b = await readJson(req);
   if ('name' in b) q('UPDATE statuses SET name=? WHERE id=?').run(String(b.name), id);
-  if ('done' in b) q('UPDATE statuses SET done=? WHERE id=?').run(b.done ? 1 : 0, id);
+  // done and cancelled are mutually exclusive
+  if ('done' in b) q('UPDATE statuses SET done=?, cancelled=CASE WHEN ? THEN 0 ELSE cancelled END WHERE id=?').run(b.done ? 1 : 0, b.done ? 1 : 0, id);
+  if ('cancelled' in b) q('UPDATE statuses SET cancelled=?, done=CASE WHEN ? THEN 0 ELSE done END WHERE id=?').run(b.cancelled ? 1 : 0, b.cancelled ? 1 : 0, id);
   send(res, 204);
 });
 route('POST', '/api/statuses/:id/move', async (req, res, { id }) => {

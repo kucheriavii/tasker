@@ -8,7 +8,7 @@ import { Progress } from './progress';
   selector: 'app-task-item',
   imports: [Progress],
   template: `
-    <div class="row" [class.done]="store.isDone(task().statusId)" (click)="onRowClick($event)">
+    <div class="row" [class.done]="store.isDone(task().statusId)" [class.cancelled]="store.isCancelled(task().statusId)" (click)="onRowClick($event)">
       <div class="main">
         <button class="icon" (click)="toggle()" [style.visibility]="task().children.length ? 'visible' : 'hidden'"
           title="collapse/expand">{{ task().collapsed ? '+' : '-' }}</button>
@@ -60,6 +60,8 @@ import { Progress } from './progress';
     .title { flex: 1; word-break: break-word; }
     .title-edit { flex: 1; min-width: 0; }
     .row.done .title { text-decoration: line-through; color: var(--muted); }
+    .row.cancelled .title { text-decoration: line-through; color: var(--muted); font-style: italic; }
+    .row.cancelled { opacity: 0.6; }
     .badge { font-size: 11px; color: var(--muted); }
     .icon { color: var(--muted); font-size: 12px; min-width: 24px; }
     .ok { border-color: var(--accent); color: var(--accent); background: #fff; }

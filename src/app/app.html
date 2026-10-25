@@ -12,11 +12,12 @@
   @if (panel() === 'statuses') {
     <section class="panel">
       <h2># statuses</h2>
-      <p class="hint">first = default for new tasks. check "done" = task is struck through and counts in progress.</p>
+      <p class="hint">first = default for new tasks. done = struck through and counts as finished; cancel = struck through, dimmed and excluded from progress.</p>
       @for (s of store.statuses(); track s.id; let i = $index) {
         <div class="srow">
           <input [value]="s.name" (change)="store.updateStatus(s.id, { name: $any($event.target).value.trim() || s.name })" />
           <label><input type="checkbox" [checked]="s.done" (change)="store.updateStatus(s.id, { done: $any($event.target).checked })" /> done</label>
+          <label><input type="checkbox" [checked]="s.cancelled" (change)="store.updateStatus(s.id, { cancelled: $any($event.target).checked })" /> cancel</label>
           <button class="icon" [disabled]="i === 0" (click)="store.moveStatus(s.id, -1)">^</button>
           <button class="icon" [disabled]="i === store.statuses().length - 1" (click)="store.moveStatus(s.id, 1)">v</button>
           <button class="icon danger" [disabled]="store.statuses().length <= 1" (click)="store.removeStatus(s.id)">x</button>
@@ -57,7 +58,7 @@
 
     <section class="detail" [class.drag]="dragging()"
       (dragover)="$event.preventDefault(); dragging.set(true)" (dragleave)="dragging.set(false)" (drop)="onDrop($event)">
-      <div class="drow" [class.done]="store.isDone(t.statusId)">
+      <div class="drow" [class.done]="store.isDone(t.statusId) || store.isCancelled(t.statusId)">
         @if (editTitle()) {
           <input #tt class="big" [value]="t.title" autofocus (keydown.enter)="saveTitle(t.id, t.title, tt.value)" />
           <button class="ok" (click)="saveTitle(t.id, t.title, tt.value)">ok</button>

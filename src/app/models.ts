@@ -3,6 +3,8 @@ export interface Status {
   name: string;
   /** Tasks with a "done" status are rendered struck-through (but stay in the list). */
   done: boolean;
+  /** Cancelled tasks are muted and excluded from progress. */
+  cancelled: boolean;
 }
 
 /** Flat task as stored in SQLite / returned by the API. */

@@ -59,3 +59,8 @@ button.ok { border-color: var(--accent); color: var(--accent); background: #fff;
 
 .reset { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; flex-wrap: wrap; }
 .reset .hint { margin: 0; }
+
+header { flex-wrap: wrap; gap: 8px; }
+.brand, .nav-btns { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.root-drop { border: 1px dashed var(--muted); padding: 8px; text-align: center; font-size: 12px; color: var(--muted); margin: 6px 0; }
+.root-drop.active { border-color: var(--accent); color: var(--accent); background: #eef6ff; }

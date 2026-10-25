@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { ApiData, Status, Task, TaskRow } from './models';
+import { ApiData, LibraryItem, RoadmapDraft, Status, Task, TaskRow } from './models';
 
 /**
  * Thin client over the SQLite-backed REST API (server/server.mjs).
@@ -12,17 +12,21 @@ export class TaskStore {
   private http = inject(HttpClient);
 
   readonly data = signal<ApiData>({ statuses: [], tasks: [] });
+  readonly library = signal<LibraryItem[]>([]);
   readonly loaded = signal(false);
   readonly error = signal<string | null>(null);
-  /** Task currently opened in the detail view (null = root list). */
+  /** Task currently opened in the detail view (null = list/roadmap view). */
   readonly openId = signal<string | null>(null);
+  /** Currently dragged task ID for Drag & Drop. */
+  readonly draggedId = signal<string | null>(null);
 
   readonly statuses = computed(() => this.data().statuses);
   private doneIds = computed(() => new Set(this.statuses().filter((s) => s.done).map((s) => s.id)));
   private cancelledIds = computed(() => new Set(this.statuses().filter((s) => s.cancelled).map((s) => s.id)));
+  private activeIds = computed(() => new Set(this.statuses().filter((s) => s.active).map((s) => s.id)));
 
-  /** Forest of non-deleted tasks, with progress computed. */
-  readonly tree = computed<Task[]>(() => {
+  /** Full forest of non-deleted root items (both regular tasks and roadmaps). */
+  private readonly allRoots = computed<Task[]>(() => {
     const done = this.doneIds();
     const cancelled = this.cancelledIds();
     const rows = this.data().tasks.filter((t) => !t.deletedAt);
@@ -46,10 +50,18 @@ export class TaskStore {
     return (byParent.get(null) ?? []).map(build);
   });
 
+  /** Regular tasks tree. */
+  readonly tree = computed<Task[]>(() =>
+    this.allRoots().filter((t) => (t.kind ?? 'task') === 'task'));
+
+  /** Skill-tree Roadmaps. */
+  readonly roadmaps = computed<Task[]>(() =>
+    this.allRoots().filter((t) => t.kind === 'roadmap'));
+
   private index = computed(() => {
     const m = new Map<string, Task>();
     const walk = (l: Task[]) => l.forEach((t) => { m.set(t.id, t); walk(t.children); });
-    walk(this.tree());
+    walk(this.allRoots());
     return m;
   });
 
@@ -71,10 +83,14 @@ export class TaskStore {
     return out;
   });
 
-  constructor() { this.refresh(); }
+  constructor() {
+    this.refresh();
+    this.refreshLibrary();
+  }
 
   isDone(statusId: string): boolean { return this.doneIds().has(statusId); }
   isCancelled(statusId: string): boolean { return this.cancelledIds().has(statusId); }
+  isActive(statusId: string): boolean { return this.activeIds().has(statusId); }
 
   async refresh() {
     try {
@@ -86,8 +102,18 @@ export class TaskStore {
     this.loaded.set(true);
   }
 
+  async refreshLibrary() {
+    try {
+      this.library.set(await firstValueFrom(this.http.get<LibraryItem[]>('/api/library')));
+    } catch {}
+  }
+
   private async call(p: Promise<unknown>) {
-    try { await p; } catch { this.error.set('request failed'); }
+    try {
+      await p;
+    } catch (e: any) {
+      this.error.set(e?.error?.error || 'request failed');
+    }
     await this.refresh();
   }
 
@@ -97,6 +123,11 @@ export class TaskStore {
   }
   updateTask(id: string, patch: Partial<Pick<Task, 'title' | 'description' | 'statusId' | 'collapsed'>>) {
     return this.call(firstValueFrom(this.http.patch(`/api/tasks/${id}`, patch)));
+  }
+  /** Drag & Drop: reorder before/after targetId, or move inside targetId as a subtask. */
+  moveTask(id: string, targetId: string | null, mode: 'before' | 'after' | 'inside') {
+    if (!id || id === targetId) return;
+    return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/move`, { targetId, mode })));
   }
   /** Moves task (with subtree) to trash. */
   removeTask(id: string) {
@@ -112,6 +143,35 @@ export class TaskStore {
   restoreTask(id: string) { return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/restore`, {}))); }
   purgeTask(id: string) { return this.call(firstValueFrom(this.http.delete(`/api/trash/${id}`))); }
   emptyTrash() { return this.call(firstValueFrom(this.http.delete('/api/trash'))); }
+
+  // ---- Library (shared repository of books, playlists, courses) ----
+  async saveTaskToLibrary(taskId: string, kind: LibraryItem['kind'] = 'book', sourceUrl = '') {
+    await firstValueFrom(this.http.post(`/api/library/from-task/${taskId}`, { kind, sourceUrl }));
+    await this.refreshLibrary();
+  }
+  async createLibraryItem(body: { kind: LibraryItem['kind']; title: string; description?: string; sourceUrl?: string; items: any[] }) {
+    await firstValueFrom(this.http.post('/api/library', body));
+    await this.refreshLibrary();
+  }
+  async cloneFromLibrary(libId: string): Promise<string> {
+    const r = await firstValueFrom(this.http.post<{ id: string }>(`/api/library/${libId}/clone`, {}));
+    await this.refresh();
+    return r.id;
+  }
+  async deleteLibraryItem(libId: string) {
+    await firstValueFrom(this.http.delete(`/api/library/${libId}`));
+    await this.refreshLibrary();
+  }
+
+  // ---- Roadmaps ----
+  generateRoadmapDraft(topic: string, details = ''): Promise<RoadmapDraft> {
+    return firstValueFrom(this.http.post<RoadmapDraft>('/api/roadmaps/generate', { topic, details }));
+  }
+  async createRoadmap(draft: RoadmapDraft): Promise<string> {
+    const r = await firstValueFrom(this.http.post<{ id: string }>('/api/roadmaps', draft));
+    await this.refresh();
+    return r.id;
+  }
 
   // ---- images ----
   async addImages(taskId: string, files: File[]) {

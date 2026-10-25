@@ -18,6 +18,7 @@ export interface TaskRow {
   statusId: string;
   collapsed: boolean;
   deletedAt: string | null;
+  kind?: 'task' | 'roadmap';
   imageIds: string[];
 }
 
@@ -33,4 +34,35 @@ export interface Task extends TaskRow {
 export interface ApiData {
   statuses: Status[];
   tasks: TaskRow[];
+}
+
+export interface LibraryNode {
+  title: string;
+  description?: string;
+  children?: LibraryNode[];
+}
+
+export interface LibraryItem {
+  id: string;
+  kind: 'book' | 'playlist' | 'course' | 'other';
+  title: string;
+  description: string;
+  sourceUrl: string;
+  createdAt: string;
+  totalItems: number;
+  items: LibraryNode[];
+}
+
+export interface RoadmapDraft {
+  title: string;
+  description: string;
+  stages: {
+    title: string;
+    description: string;
+    branches: {
+      title: string;
+      description: string;
+      skills: { title: string; description: string }[];
+    }[];
+  }[];
 }

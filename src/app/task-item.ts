@@ -3,13 +3,27 @@ import { Task } from './models';
 import { TaskStore } from './task-store';
 import { Progress } from './progress';
 
-/** Recursive node: renders a task and its subtasks (unlimited depth). Tap the row to open the task. */
+/** Recursive node: renders a task and its subtasks (unlimited depth). Tap the row to open the task; drag to reorder or nest. */
 @Component({
   selector: 'app-task-item',
   imports: [Progress],
   template: `
-    <div class="row" [class.done]="store.isDone(task().statusId)" [class.cancelled]="store.isCancelled(task().statusId)" (click)="onRowClick($event)">
+    <div class="row"
+      [class.root]="task().parentId === null"
+      [class.done]="store.isDone(task().statusId)"
+      [class.cancelled]="store.isCancelled(task().statusId)"
+      [class.drop-before]="dropZone() === 'before'"
+      [class.drop-after]="dropZone() === 'after'"
+      [class.drop-inside]="dropZone() === 'inside'"
+      [attr.draggable]="!editing()"
+      (dragstart)="onDragStart($event)"
+      (dragend)="onDragEnd()"
+      (dragover)="onDragOver($event)"
+      (dragleave)="dropZone.set(null)"
+      (drop)="onDrop($event)"
+      (click)="onRowClick($event)">
       <div class="main">
+        <span class="grip" title="drag: top/bottom = reorder, center = make subtask">::</span>
         <button class="icon" (click)="toggle()" [style.visibility]="task().children.length ? 'visible' : 'hidden'"
           title="collapse/expand">{{ task().collapsed ? '+' : '-' }}</button>
 
@@ -57,6 +71,12 @@ import { Progress } from './progress';
     .row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 0;
       border-bottom: 1px dashed var(--line); cursor: pointer; }
     .row:hover { background: #fff; }
+    .row.root .title { font-weight: 700; }
+    .grip { color: var(--muted); cursor: grab; user-select: none; font-size: 12px; padding: 0 2px; }
+    .grip:active { cursor: grabbing; }
+    .row.drop-before { border-top: 2px solid var(--accent); }
+    .row.drop-after { border-bottom: 2px solid var(--accent); }
+    .row.drop-inside { outline: 2px dashed var(--accent); background: #eef6ff; }
     .main { display: flex; align-items: center; gap: 6px; flex: 1 1 220px; min-width: 0; }
     .meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-left: auto; }
     .title { flex: 1; word-break: break-word; }
@@ -87,10 +107,11 @@ export class TaskItem {
   readonly store = inject(TaskStore);
   readonly editing = signal(false);
   readonly adding = signal(false);
+  readonly dropZone = signal<'before' | 'after' | 'inside' | null>(null);
 
   /** Tapping the container opens the task, unless an interactive control was hit. */
   onRowClick(e: MouseEvent) {
-    if ((e.target as HTMLElement).closest('button,select,input,form,app-progress a')) return;
+    if ((e.target as HTMLElement).closest('button,select,input,form,app-progress a,.grip')) return;
     this.store.openId.set(this.task().id);
   }
   toggle() {
@@ -106,5 +127,36 @@ export class TaskItem {
   }
   addChild(title: string) {
     this.store.addTask(this.task().id, title);
+    this.adding.set(false);
+  }
+
+  onDragStart(e: DragEvent) {
+    e.stopPropagation();
+    this.store.draggedId.set(this.task().id);
+    e.dataTransfer?.setData('text/plain', this.task().id);
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+  }
+  onDragEnd() {
+    this.store.draggedId.set(null);
+    this.dropZone.set(null);
+  }
+  onDragOver(e: DragEvent) {
+    const dragged = this.store.draggedId();
+    if (!dragged || dragged === this.task().id) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const rel = (e.clientY - rect.top) / (rect.height || 1);
+    this.dropZone.set(rel < 0.28 ? 'before' : rel > 0.72 ? 'after' : 'inside');
+  }
+  onDrop(e: DragEvent) {
+    const dragged = this.store.draggedId() || e.dataTransfer?.getData('text/plain') || '';
+    const mode = this.dropZone();
+    this.dropZone.set(null);
+    this.store.draggedId.set(null);
+    if (!dragged || !mode || dragged === this.task().id) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this.store.moveTask(dragged, this.task().id, mode);
   }
 }

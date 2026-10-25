@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerImport } from './ai-import.mjs';
+import { migrateFeatures, registerFeatures } from './features.mjs';
 
 // minimal .env loader (no dependencies); must run before ai-import reads process.env
 const envFile = join(dirname(fileURLToPath(import.meta.url)), '..', '.env');
@@ -70,6 +71,7 @@ if (db.prepare('SELECT COUNT(*) c FROM statuses').get().c === 0) {
   [['todo', 0, 0, 0], ['in progress', 0, 0, 1], ['blocked', 0, 0, 0], ['done', 1, 0, 0], ['cancelled', 0, 1, 0]].forEach(([n, d, c, a], i) =>
     ins.run(randomUUID(), n, d, i, c, a));
 }
+migrateFeatures(db);
 
 const q = (sql) => db.prepare(sql);
 const tx = (fn) => {
@@ -86,10 +88,10 @@ function getData() {
   const byTask = new Map();
   for (const i of imgs) (byTask.get(i.task_id) ?? byTask.set(i.task_id, []).get(i.task_id)).push(i.id);
   const tasks = q(
-    'SELECT id,parent_id,title,description,status_id,collapsed,deleted_at FROM tasks ORDER BY pos',
+    'SELECT id,parent_id,title,description,status_id,collapsed,deleted_at,kind FROM tasks ORDER BY pos',
   ).all().map((t) => ({
     id: t.id, parentId: t.parent_id, title: t.title, description: t.description,
-    statusId: t.status_id, collapsed: !!t.collapsed, deletedAt: t.deleted_at,
+    statusId: t.status_id, collapsed: !!t.collapsed, deletedAt: t.deleted_at, kind: t.kind || 'task',
     imageIds: byTask.get(t.id) ?? [],
   }));
   return { statuses, tasks };
@@ -299,6 +301,7 @@ route('DELETE', '/api/statuses/:id', (_r, res, { id }) => {
 });
 
 registerImport({ route, send, readBody, readJson, q, tx, nextPos, maxBody: MAX_IMAGE * 2 });
+registerFeatures({ route, send, readJson, q, tx, nextPos, descendants });
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');

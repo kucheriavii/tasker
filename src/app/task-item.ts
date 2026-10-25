@@ -38,8 +38,10 @@ import { Progress } from './progress';
     </div>
 
     @if (adding()) {
-      <form class="add indent" (submit)="$event.preventDefault(); addChild(inp.value); inp.value = ''">
-        <input #inp placeholder="subtask..." autofocus />
+      <form class="add indent addrow" (submit)="$event.preventDefault(); addChild(inp.value); inp.value = ''">
+        <input #inp placeholder="subtask..." autofocus (keydown.escape)="adding.set(false)" />
+        <button type="submit" class="ok">add</button>
+        <button type="button" (click)="adding.set(false)">cancel</button>
       </form>
     }
 
@@ -70,6 +72,8 @@ import { Progress } from './progress';
     .children { margin-left: 10px; padding-left: 8px; border-left: 1px solid var(--line); }
     .indent { margin-left: 30px; }
     .add input { width: 100%; }
+    .addrow { display: flex; gap: 6px; align-items: center; }
+    .addrow input { flex: 1; min-width: 0; }
 
     @media (max-width: 640px) {
       .meta { width: 100%; margin-left: 30px; }

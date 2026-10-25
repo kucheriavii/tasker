@@ -1,0 +1,37 @@
+<main>
+  <header>
+    <h1>&gt; tasker<span class="cursor">_</span></h1>
+    <button (click)="showSettings.set(!showSettings())">[{{ showSettings() ? 'close' : 'statuses' }}]</button>
+  </header>
+
+  @if (showSettings()) {
+    <section class="settings">
+      <h2># statuses</h2>
+      <p class="hint">first = default for new tasks. check "done" = task is struck through.</p>
+      @for (s of store.state().statuses; track s.id; let i = $index) {
+        <div class="srow">
+          <input [value]="s.name" (change)="store.updateStatus(s.id, { name: $any($event.target).value.trim() || s.name })" />
+          <label><input type="checkbox" [checked]="s.done" (change)="store.updateStatus(s.id, { done: $any($event.target).checked })" /> done</label>
+          <button class="icon" [disabled]="i === 0" (click)="store.moveStatus(s.id, -1)">^</button>
+          <button class="icon" [disabled]="i === store.state().statuses.length - 1" (click)="store.moveStatus(s.id, 1)">v</button>
+          <button class="icon danger" [disabled]="store.state().statuses.length <= 1" (click)="store.removeStatus(s.id)">x</button>
+        </div>
+      }
+      <form class="add" (submit)="$event.preventDefault(); store.addStatus(st.value); st.value = ''">
+        <input #st placeholder="new status..." />
+      </form>
+    </section>
+  }
+
+  <form class="add" (submit)="$event.preventDefault(); store.addTask(null, t.value); t.value = ''">
+    <input #t placeholder="new task, press enter..." />
+  </form>
+
+  <section class="tree">
+    @for (task of store.state().tasks; track task.id) {
+      <app-task-item [task]="task" />
+    } @empty {
+      <p class="hint">no tasks yet.</p>
+    }
+  </section>
+</main>

@@ -1,0 +1,41 @@
+:root {
+  --bg: #fafaf7;
+  --fg: #1f2328;
+  --muted: #8a8f98;
+  --line: #e2e2dc;
+  --accent: #0b6bcb;
+  --danger: #c62828;
+  font-family: ui-monospace, 'JetBrains Mono', 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 14px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: inherit;
+}
+
+button, input, select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+button:hover:not(:disabled) { border-color: var(--line); background: #fff; }
+button:disabled { opacity: 0.3; cursor: default; }
+
+input:not([type='checkbox']), select {
+  background: #fff;
+  border: 1px solid var(--line);
+  padding: 4px 8px;
+  border-radius: 0;
+}
+input:focus, select:focus { outline: 1px solid var(--accent); }

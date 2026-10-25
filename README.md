@@ -24,3 +24,5 @@ Header button `[import]`: paste a link, text of a table of contents, or a screen
 2. Copy `.env.example` to `.env`, set `GEMINI_API_KEY`, restart `npm start`.
 
 Note: Udemy blocks automatic page loading (HTTP 403), so for Udemy paste the curriculum text or a screenshot.
+
+YouTube playlists: paste a playlist link into `[import]` — videos become subtasks (no AI key needed; public/unlisted playlists).

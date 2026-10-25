@@ -13,7 +13,7 @@ interface Draft { title: string; items: DraftItem[]; }
     <section class="panel">
       <h2># import plan</h2>
       @if (!draft()) {
-        <p class="hint">paste a link (book / course page), or the table of contents text, or drop / paste (Ctrl+V) / pick a screenshot.</p>
+        <p class="hint">paste a YouTube playlist link (works without AI key), a book / course page link, or the table of contents text, or drop / paste (Ctrl+V) / pick a screenshot.</p>
         <input [value]="url()" (input)="url.set($any($event.target).value)" placeholder="https://www.udemy.com/course/..." />
         <textarea rows="5" [value]="text()" (input)="text.set($any($event.target).value)" placeholder="...or paste table of contents here"></textarea>
 

@@ -1,5 +1,6 @@
 // AI import: screenshot / text / link -> draft plan (Gemini) -> tasks.
 import { randomUUID } from 'node:crypto';
+import { fetchYoutubePlaylist, youtubePlaylistId } from './youtube.mjs';
 
 const fail = (msg, status) => Object.assign(new Error(msg), { status });
 
@@ -86,6 +87,8 @@ export function registerImport({ route, send, readBody, readJson, q, tx, nextPos
     const b = JSON.parse((await readBody(req, maxBody)).toString('utf8') || '{}');
     let text = (b.text || '').trim();
     const url = (b.url || '').trim();
+    const listId = url && !text ? youtubePlaylistId(url) : null;
+    if (listId) return send(res, 200, await fetchYoutubePlaylist(listId)); // no AI needed
     if (url && !text) text = await fetchPageText(url);
     if (!text && !b.imageBase64) return send(res, 400, { error: 'Provide a link, text or a screenshot.' });
     send(res, 200, await generatePlan({ text, imageBase64: b.imageBase64, imageMime: b.imageMime }));

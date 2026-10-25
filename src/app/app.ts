@@ -28,6 +28,10 @@ export class App {
     });
   }
 
+  resetSubtasks(id: string, statusId: string, name: string) {
+    if (window.confirm(`Set ALL subtasks to "${name}"?`)) this.store.setSubtasksStatus(id, statusId);
+  }
+
   confirm(msg: string) {
     return window.confirm(msg);
   }

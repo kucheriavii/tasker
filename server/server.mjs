@@ -60,10 +60,15 @@ if (!db.prepare('PRAGMA table_info(statuses)').all().some((c) => c.name === 'can
   }
 }
 
+// migration: statuses.active ("in progress" semantics: propagates up to parent tasks)
+if (!db.prepare('PRAGMA table_info(statuses)').all().some((c) => c.name === 'active')) {
+  db.exec('ALTER TABLE statuses ADD COLUMN active INTEGER NOT NULL DEFAULT 0');
+  db.exec("UPDATE statuses SET active=1 WHERE lower(name) IN ('in progress','in-progress','doing')");
+}
 if (db.prepare('SELECT COUNT(*) c FROM statuses').get().c === 0) {
-  const ins = db.prepare('INSERT INTO statuses (id,name,done,pos,cancelled) VALUES (?,?,?,?,?)');
-  [['todo', 0, 0], ['in progress', 0, 0], ['blocked', 0, 0], ['done', 1, 0], ['cancelled', 0, 1]].forEach(([n, d, c], i) =>
-    ins.run(randomUUID(), n, d, i, c));
+  const ins = db.prepare('INSERT INTO statuses (id,name,done,pos,cancelled,active) VALUES (?,?,?,?,?,?)');
+  [['todo', 0, 0, 0], ['in progress', 0, 0, 1], ['blocked', 0, 0, 0], ['done', 1, 0, 0], ['cancelled', 0, 1, 0]].forEach(([n, d, c, a], i) =>
+    ins.run(randomUUID(), n, d, i, c, a));
 }
 
 const q = (sql) => db.prepare(sql);
@@ -75,8 +80,8 @@ const nextPos = (table, where = '1=1', ...args) =>
   (q(`SELECT COALESCE(MAX(pos),-1)+1 p FROM ${table} WHERE ${where}`).get(...args).p);
 
 function getData() {
-  const statuses = q('SELECT id,name,done,cancelled FROM statuses ORDER BY pos').all()
-    .map((s) => ({ ...s, done: !!s.done, cancelled: !!s.cancelled }));
+  const statuses = q('SELECT id,name,done,cancelled,active FROM statuses ORDER BY pos').all()
+    .map((s) => ({ ...s, done: !!s.done, cancelled: !!s.cancelled, active: !!s.active }));
   const imgs = q('SELECT id,task_id FROM images ORDER BY created_at, rowid').all();
   const byTask = new Map();
   for (const i of imgs) (byTask.get(i.task_id) ?? byTask.set(i.task_id, []).get(i.task_id)).push(i.id);
@@ -140,6 +145,62 @@ route('POST', '/api/tasks', async (req, res) => {
   send(res, 201, { id });
 });
 
+// ---- status propagation rules ----
+// 1) task becomes "done"  -> all its subtasks become that done status (cancelled ones are left alone)
+// 2) a task becomes "done" or "active" -> every ancestor becomes the first "active" status
+const statusKind = (sid) => q('SELECT done,cancelled,active FROM statuses WHERE id=?').get(sid);
+
+function descendants(id) {
+  return q(`WITH RECURSIVE d(id) AS (
+      SELECT id FROM tasks WHERE parent_id=? AND deleted_at IS NULL
+      UNION ALL SELECT t.id FROM tasks t JOIN d ON t.parent_id=d.id WHERE t.deleted_at IS NULL)
+    SELECT id FROM d`).all(id).map((r) => r.id);
+}
+
+function activateAncestors(id, childIsDone) {
+  const act = q('SELECT id FROM statuses WHERE active=1 ORDER BY pos LIMIT 1').get();
+  if (!act) return;
+  let cur = q('SELECT parent_id FROM tasks WHERE id=?').get(id)?.parent_id;
+  while (cur) {
+    const t = q('SELECT parent_id,status_id FROM tasks WHERE id=?').get(cur);
+    if (!t) break;
+    const k = statusKind(t.status_id);
+    const keep = k?.active || k?.cancelled || (k?.done && childIsDone);
+    if (!keep) q('UPDATE tasks SET status_id=? WHERE id=?').run(act.id, cur);
+    cur = t.parent_id;
+  }
+}
+
+function applyStatusRules(id, statusId) {
+  const k = statusKind(statusId);
+  if (!k) return;
+  if (k.done) {
+    const skip = new Set(q('SELECT id FROM statuses WHERE cancelled=1').all().map((s) => s.id));
+    for (const d of descendants(id)) {
+      const cur = q('SELECT status_id FROM tasks WHERE id=?').get(d).status_id;
+      if (!skip.has(cur)) q('UPDATE tasks SET status_id=? WHERE id=?').run(statusId, d);
+    }
+  }
+  if (k.done || k.active) activateAncestors(id, !!k.done);
+}
+
+route('POST', '/api/tasks/:id/set-subtasks', async (req, res, { id }) => {
+  const { statusId } = await readJson(req);
+  const k = statusKind(statusId);
+  if (!k) return send(res, 400, { error: 'unknown status' });
+  tx(() => {
+    for (const d of descendants(id)) q('UPDATE tasks SET status_id=? WHERE id=?').run(statusId, d);
+    if (k.done || k.active) {
+      // the task itself is part of the chain that becomes "in progress"
+      const cur = q('SELECT status_id FROM tasks WHERE id=?').get(id)?.status_id;
+      const ck = statusKind(cur);
+      const act = q('SELECT id FROM statuses WHERE active=1 ORDER BY pos LIMIT 1').get();
+      if (act && !(ck?.active || ck?.cancelled || (ck?.done && k.done))) q('UPDATE tasks SET status_id=? WHERE id=?').run(act.id, id);
+      activateAncestors(id, !!k.done);
+    }
+  });
+  send(res, 204);
+});
 route('PATCH', '/api/tasks/:id', async (req, res, { id }) => {
   const b = await readJson(req);
   const map = { title: 'title', description: 'description', statusId: 'status_id', collapsed: 'collapsed' };
@@ -147,7 +208,10 @@ route('PATCH', '/api/tasks/:id', async (req, res, { id }) => {
   for (const [k, col] of Object.entries(map)) if (k in b) {
     sets.push(`${col}=?`); vals.push(k === 'collapsed' ? (b[k] ? 1 : 0) : b[k]);
   }
-  if (sets.length) q(`UPDATE tasks SET ${sets.join(',')} WHERE id=?`).run(...vals, id);
+  tx(() => {
+    if (sets.length) q(`UPDATE tasks SET ${sets.join(',')} WHERE id=?`).run(...vals, id);
+    if ('statusId' in b) applyStatusRules(id, b.statusId);
+  });
   send(res, 204);
 });
 
@@ -206,9 +270,11 @@ route('POST', '/api/statuses', async (req, res) => {
 route('PATCH', '/api/statuses/:id', async (req, res, { id }) => {
   const b = await readJson(req);
   if ('name' in b) q('UPDATE statuses SET name=? WHERE id=?').run(String(b.name), id);
-  // done and cancelled are mutually exclusive
-  if ('done' in b) q('UPDATE statuses SET done=?, cancelled=CASE WHEN ? THEN 0 ELSE cancelled END WHERE id=?').run(b.done ? 1 : 0, b.done ? 1 : 0, id);
-  if ('cancelled' in b) q('UPDATE statuses SET cancelled=?, done=CASE WHEN ? THEN 0 ELSE done END WHERE id=?').run(b.cancelled ? 1 : 0, b.cancelled ? 1 : 0, id);
+  // done / cancelled / active are mutually exclusive
+  for (const flag of ['done', 'cancelled', 'active']) {
+    if (flag in b && b[flag]) q("UPDATE statuses SET done=0, cancelled=0, active=0 WHERE id=?").run(id);
+    if (flag in b) q(`UPDATE statuses SET ${flag}=? WHERE id=?`).run(b[flag] ? 1 : 0, id);
+  }
   send(res, 204);
 });
 route('POST', '/api/statuses/:id/move', async (req, res, { id }) => {

@@ -5,6 +5,8 @@ export interface Status {
   done: boolean;
   /** Cancelled tasks are muted and excluded from progress. */
   cancelled: boolean;
+  /** "In progress" kind: when a subtask gets it (or done), all parent tasks switch to the first active status. */
+  active: boolean;
 }
 
 /** Flat task as stored in SQLite / returned by the API. */

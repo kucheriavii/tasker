@@ -56,3 +56,6 @@ button.ok { border-color: var(--accent); color: var(--accent); background: #fff;
   button { min-height: 36px; min-width: 40px; }
   header button { min-width: 0; }
 }
+
+.reset { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; flex-wrap: wrap; }
+.reset .hint { margin: 0; }

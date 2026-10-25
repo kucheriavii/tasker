@@ -15,12 +15,13 @@
   @if (panel() === 'statuses') {
     <section class="panel">
       <h2># statuses</h2>
-      <p class="hint">first = default for new tasks. done = struck through and counts as finished; cancel = struck through, dimmed and excluded from progress.</p>
+      <p class="hint">first = default for new tasks. done = struck through and counts as finished; cancel = struck through, dimmed and excluded from progress; active = "in progress": parents of a task that is active or done switch to it. A done task makes all its subtasks done.</p>
       @for (s of store.statuses(); track s.id; let i = $index) {
         <div class="srow">
           <input [value]="s.name" (change)="store.updateStatus(s.id, { name: $any($event.target).value.trim() || s.name })" />
           <label><input type="checkbox" [checked]="s.done" (change)="store.updateStatus(s.id, { done: $any($event.target).checked })" /> done</label>
           <label><input type="checkbox" [checked]="s.cancelled" (change)="store.updateStatus(s.id, { cancelled: $any($event.target).checked })" /> cancel</label>
+          <label><input type="checkbox" [checked]="s.active" (change)="store.updateStatus(s.id, { active: $any($event.target).checked })" /> active</label>
           <button class="icon" [disabled]="i === 0" (click)="store.moveStatus(s.id, -1)">^</button>
           <button class="icon" [disabled]="i === store.statuses().length - 1" (click)="store.moveStatus(s.id, 1)">v</button>
           <button class="icon danger" [disabled]="store.statuses().length <= 1" (click)="store.removeStatus(s.id)">x</button>
@@ -107,6 +108,15 @@
       </p>
 
       <h2># subtasks</h2>
+      @if (t.children.length) {
+        <div class="reset">
+          <span class="hint">set all subtasks to</span>
+          <select #rs>
+            @for (s of store.statuses(); track s.id) { <option [value]="s.id">{{ s.name }}</option> }
+          </select>
+          <button (click)="resetSubtasks(t.id, rs.value, rs.selectedOptions[0].text)">reset</button>
+        </div>
+      }
       @for (c of t.children; track c.id) {
         <app-task-item [task]="c" />
       } @empty {

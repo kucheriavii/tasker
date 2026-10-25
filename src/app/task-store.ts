@@ -105,6 +105,10 @@ export class TaskStore {
     }
     return this.call(firstValueFrom(this.http.delete(`/api/tasks/${id}`)));
   }
+  /** Sets every subtask (any depth) of a task to the given status. */
+  setSubtasksStatus(id: string, statusId: string) {
+    return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/set-subtasks`, { statusId })));
+  }
   restoreTask(id: string) { return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/restore`, {}))); }
   purgeTask(id: string) { return this.call(firstValueFrom(this.http.delete(`/api/trash/${id}`))); }
   emptyTrash() { return this.call(firstValueFrom(this.http.delete('/api/trash'))); }
@@ -128,7 +132,7 @@ export class TaskStore {
     if (!name.trim()) return;
     return this.call(firstValueFrom(this.http.post('/api/statuses', { name })));
   }
-  updateStatus(id: string, patch: Partial<Pick<Status, 'name' | 'done' | 'cancelled'>>) {
+  updateStatus(id: string, patch: Partial<Pick<Status, 'name' | 'done' | 'cancelled' | 'active'>>) {
     return this.call(firstValueFrom(this.http.patch(`/api/statuses/${id}`, patch)));
   }
   moveStatus(id: string, dir: -1 | 1) { return this.call(firstValueFrom(this.http.post(`/api/statuses/${id}/move`, { dir }))); }

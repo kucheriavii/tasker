@@ -132,6 +132,24 @@ button.ok { border-color: var(--accent); color: var(--accent); background: #fff;
 .reset { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; flex-wrap: wrap; }
 .reset .hint { margin: 0; }
 
+.due-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  padding: 1px 5px;
+  background: #fff;
+  white-space: nowrap;
+  border-radius: 2px;
+}
+.due-badge.overdue {
+  color: #b71c1c;
+  border-color: #f5c2c7;
+  background: #ffebee;
+  font-weight: 700;
+}
+
 .hamburger-btn { display: none; }
 .mobile-backdrop, .mobile-nav { display: none; }
 

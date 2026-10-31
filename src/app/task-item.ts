@@ -25,43 +25,35 @@ import { Progress } from './progress';
       (drop)="onDrop($event)"
       (click)="onRowClick($event)">
 
-      <div class="task-head">
-        <span class="grip" title="drag: top/bottom = reorder, center = make subtask">::</span>
-        @if (task().children.length) {
-          <button class="icon toggle-btn" (click)="toggle()" title="collapse/expand">
-            {{ task().collapsed ? '+' : '-' }}
-          </button>
-        } @else {
-          <span class="dot">·</span>
-        }
+      <div class="task-left">
+        <div class="task-head">
+          <span class="grip" title="drag: top/bottom = reorder, center = make subtask">::</span>
+          @if (task().children.length) {
+            <button class="icon toggle-btn" (click)="toggle()" title="collapse/expand">
+              {{ task().collapsed ? '+' : '-' }}
+            </button>
+          } @else {
+            <span class="dot">·</span>
+          }
 
-        @if (editing()) {
-          <div class="edit-box">
-            <input #ed class="title-edit" [value]="task().title" autofocus
-              (keydown.enter)="save(ed.value, dueEd.value)" (keydown.escape)="editing.set(false)" />
-            <div class="edit-tools">
-              <input #dueEd type="datetime-local" class="due-in" [value]="task().dueAt || ''" title="deadline" />
-              <div class="edit-btns">
-                <button class="ok" (click)="save(ed.value, dueEd.value)">ok</button>
-                <button (click)="editing.set(false)">cancel</button>
+          @if (editing()) {
+            <div class="edit-box">
+              <input #ed class="title-edit" [value]="task().title" autofocus
+                (keydown.enter)="save(ed.value, dueEd.value)" (keydown.escape)="editing.set(false)" />
+              <div class="edit-tools">
+                <input #dueEd type="datetime-local" class="due-in" [value]="task().dueAt || ''" title="deadline" />
+                <div class="edit-btns">
+                  <button class="ok" (click)="save(ed.value, dueEd.value)">ok</button>
+                  <button (click)="editing.set(false)">cancel</button>
+                </div>
               </div>
             </div>
-          </div>
-        } @else {
-          <span class="title">{{ task().title }}</span>
-        }
-      </div>
-
-      @if (!editing()) {
-        <div class="meta-status">
-          <select [value]="task().statusId" (change)="setStatus($any($event.target).value)">
-            @for (s of store.statuses(); track s.id) {
-              <option [value]="s.id" [selected]="s.id === task().statusId">{{ s.name }}</option>
-            }
-          </select>
+          } @else {
+            <span class="title">{{ task().title }}</span>
+          }
         </div>
 
-        @if (task().dueAt || task().description || task().imageIds.length) {
+        @if (!editing() && (task().dueAt || task().description || task().imageIds.length)) {
           <div class="badges">
             @if (task().dueAt) {
               <span class="due-badge" [class.overdue]="store.isOverdue(task())" [title]="'due: ' + formatDue(task().dueAt!)">
@@ -74,13 +66,25 @@ import { Progress } from './progress';
         } @else {
           <div class="badges empty-badges"></div>
         }
+      </div>
 
-        <div class="meta-right">
-          <app-progress [value]="task().progress" [done]="task().leafDone" [total]="task().leafTotal" />
-          <div class="row-btns">
-            <button class="icon" (click)="editing.set(true)">edit</button>
-            <button class="icon" (click)="adding.set(!adding())">+sub</button>
-            <button class="icon danger" (click)="remove()" title="move to trash">x</button>
+      @if (!editing()) {
+        <div class="meta-controls">
+          <div class="meta-status">
+            <select [value]="task().statusId" (change)="setStatus($any($event.target).value)">
+              @for (s of store.statuses(); track s.id) {
+                <option [value]="s.id" [selected]="s.id === task().statusId">{{ s.name }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="meta-right">
+            <app-progress [value]="task().progress" [done]="task().leafDone" [total]="task().leafTotal" />
+            <div class="row-btns">
+              <button class="icon" (click)="editing.set(true)">edit</button>
+              <button class="icon" (click)="adding.set(!adding())">+sub</button>
+              <button class="icon danger" (click)="remove()" title="move to trash">x</button>
+            </div>
           </div>
         </div>
       }
@@ -111,14 +115,18 @@ import { Progress } from './progress';
     .row {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 6px 8px;
-      padding: 5px 4px;
+      padding: 5px 6px;
       border-bottom: 1px dashed var(--line);
       cursor: pointer;
     }
     .row.root { border-bottom-style: solid; background: #fff; }
     .row:hover { background: #f6f8fa; }
     .row.root .title { font-weight: 700; }
+    .row.overdue { background: #fff8f8; border-color: #f5c2c7; }
+    .row.overdue:hover { background: #fdf0f0; }
+    .row.root.overdue { background: #fff5f5; }
     .grip { color: var(--muted); cursor: grab; user-select: none; font-size: 12px; padding: 0 2px; }
     .grip:active { cursor: grabbing; }
     .dot { color: var(--muted); width: 16px; text-align: center; user-select: none; }
@@ -126,21 +134,36 @@ import { Progress } from './progress';
     .row.drop-before { border-top: 2px solid var(--accent); }
     .row.drop-after { border-bottom: 2px solid var(--accent); }
     .row.drop-inside { outline: 2px dashed var(--accent); background: #eef6ff; }
-    .task-head { display: flex; align-items: center; gap: 6px; flex: 1 1 200px; min-width: 0; }
+    .task-left { display: flex; flex-direction: column; gap: 2px; flex: 1 1 200px; min-width: 0; }
+    .task-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
     .title { flex: 1; word-break: break-word; line-height: 1.35; }
-    .badges { display: inline-flex; align-items: center; gap: 4px; }
+    .badges { display: inline-flex; align-items: center; gap: 4px; padding-left: 28px; }
     .empty-badges { display: none; }
     .edit-box { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 0; }
     .title-edit { flex: 1 1 180px; min-width: 0; }
     .edit-tools { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
     .edit-btns { display: inline-flex; gap: 4px; align-items: center; }
     .due-in { font-size: 12px; max-width: 175px; }
-    .due-badge { font-size: 11px; color: var(--muted); border: 1px solid var(--line); padding: 1px 5px; background: #fff; white-space: nowrap; }
-    .due-badge.overdue { color: var(--danger); border-color: var(--danger); font-weight: bold; }
-    .meta-status { display: inline-flex; order: 3; }
+    .due-badge {
+      font-size: 11px;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      padding: 1px 5px;
+      background: #fff;
+      white-space: nowrap;
+      border-radius: 2px;
+    }
+    .due-badge.overdue {
+      color: #b71c1c;
+      border-color: #f5c2c7;
+      background: #ffebee;
+      font-weight: 700;
+    }
+    .meta-controls { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; flex: 0 0 auto; }
+    .meta-status { display: inline-flex; }
     .meta-status select { max-width: 130px; }
-    .meta-right { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; order: 2; }
-    .row-btns { display: inline-flex; gap: 4px; align-items: center; order: 4; }
+    .meta-right { display: inline-flex; align-items: center; gap: 6px; }
+    .row-btns { display: inline-flex; gap: 4px; align-items: center; }
     .row.done .title { text-decoration: line-through; color: var(--muted); }
     .row.cancelled .title { text-decoration: line-through; color: var(--muted); font-style: italic; }
     .row.cancelled { opacity: 0.6; }
@@ -158,7 +181,7 @@ import { Progress } from './progress';
         display: grid;
         grid-template-columns: 1fr auto;
         align-items: center;
-        gap: 2px 8px;
+        gap: 2px 6px;
         padding: 4px 6px;
         margin-bottom: 3px;
         background: #fff;
@@ -167,7 +190,14 @@ import { Progress } from './progress';
         max-height: 60px;
         overflow: hidden;
       }
+      .row.overdue {
+        background: #fff8f8;
+        border-color: #f5c2c7;
+      }
       .grip { display: none; }
+      .task-left {
+        display: contents;
+      }
       .task-head {
         grid-column: 1 / 2;
         grid-row: 1 / 2;
@@ -197,6 +227,9 @@ import { Progress } from './progress';
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+      }
+      .meta-controls {
+        display: contents;
       }
       .meta-status {
         grid-column: 2 / 3;
@@ -235,6 +268,12 @@ import { Progress } from './progress';
         border: 1px solid var(--line);
         line-height: 1.15;
         white-space: nowrap;
+      }
+      .due-badge.overdue {
+        color: #b71c1c;
+        border-color: #f5c2c7;
+        background: #ffebee;
+        font-weight: 700;
       }
       .meta-right {
         grid-column: 2 / 3;

@@ -175,7 +175,7 @@
         @if (t.dueAt) {
           <span class="hint">set: {{ formatDue(t.dueAt) }}</span>
           @if (store.isOverdue(t)) {
-            <span class="err">! overdue</span>
+            <span class="due-badge overdue">! overdue</span>
           }
         } @else {
           <span class="hint">no deadline set</span>

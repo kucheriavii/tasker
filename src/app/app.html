@@ -1,9 +1,9 @@
 <main>
   <header>
     <div class="brand">
-      <h1 (click)="store.openId.set(null)" style="cursor:pointer">&gt; tasker<span class="cursor">_</span></h1>
-      <button [class.ok]="tab() === 'task' && !store.open()" (click)="switchTab('task')" title="short-term tasks">[tasks:{{ store.tree().length }}]</button>
-      <button [class.ok]="tab() === 'book' && !store.open()" (click)="switchTab('book')" title="long-term books, playlists & courses">[books:{{ store.books().length }}]</button>
+      <h1 (click)="store.openId.set(null); closeMenu()" style="cursor:pointer">&gt; tasker<span class="cursor">_</span></h1>
+      <button class="brand-tab" [class.ok]="tab() === 'task' && !store.open()" (click)="switchTab('task')" title="short-term tasks">[tasks:{{ store.tree().length }}]</button>
+      <button class="brand-tab" [class.ok]="tab() === 'book' && !store.open()" (click)="switchTab('book')" title="long-term books, playlists & courses">[books:{{ store.books().length }}]</button>
     </div>
     <div class="nav-btns">
       <button [class.ok]="store.isAdmin()" (click)="toggleRole()" title="switch role (user / admin)">[role:{{ store.role() }}]</button>
@@ -12,7 +12,57 @@
       <button [class.ok]="panel() === 'trash'" (click)="toggle('trash')">[trash{{ store.trash().length ? ':' + store.trash().length : '' }}]</button>
       <button [class.ok]="panel() === 'statuses'" (click)="toggle('statuses')">[statuses]</button>
     </div>
+    <button class="hamburger-btn" (click)="toggleMenu()" [class.active]="menuOpen()" [attr.aria-label]="menuOpen() ? 'Close menu' : 'Open menu'">
+      {{ menuOpen() ? '[✕ close]' : '[≡ menu]' }}
+    </button>
   </header>
+
+  @if (menuOpen()) {
+    <div class="mobile-backdrop" (click)="closeMenu()"></div>
+    <nav class="mobile-nav" (click)="$event.stopPropagation()">
+      <div class="mobile-nav-section">
+        <div class="mobile-nav-label"># views</div>
+        <button class="mobile-nav-item" [class.ok]="tab() === 'task' && !store.open()" (click)="switchTabMobile('task')">
+          <span class="m-title">[tasks] short-term</span>
+          <span class="m-badge">{{ store.tree().length }}</span>
+        </button>
+        <button class="mobile-nav-item" [class.ok]="tab() === 'book' && !store.open()" (click)="switchTabMobile('book')">
+          <span class="m-title">[books] long-term</span>
+          <span class="m-badge">{{ store.books().length }}</span>
+        </button>
+      </div>
+
+      <div class="mobile-nav-section">
+        <div class="mobile-nav-label"># tools &amp; catalog</div>
+        <button class="mobile-nav-item" [class.ok]="panel() === 'import'" (click)="toggleMobile('import')">
+          <span class="m-title">[import] add / ai task</span>
+        </button>
+        <button class="mobile-nav-item" [class.ok]="panel() === 'library'" (click)="toggleMobile('library')">
+          <span class="m-title">[library] shared repository</span>
+          @if (store.library().length) {
+            <span class="m-badge">{{ store.library().length }}</span>
+          }
+        </button>
+        <button class="mobile-nav-item" [class.ok]="panel() === 'statuses'" (click)="toggleMobile('statuses')">
+          <span class="m-title">[statuses] manage tags</span>
+        </button>
+        <button class="mobile-nav-item" [class.ok]="panel() === 'trash'" (click)="toggleMobile('trash')">
+          <span class="m-title">[trash] deleted tasks</span>
+          @if (store.trash().length) {
+            <span class="m-badge">{{ store.trash().length }}</span>
+          }
+        </button>
+      </div>
+
+      <div class="mobile-nav-section">
+        <div class="mobile-nav-label"># access</div>
+        <button class="mobile-nav-item role-item" [class.ok]="store.isAdmin()" (click)="toggleRoleMobile()">
+          <span class="m-title">[role: {{ store.role() }}]</span>
+          <span class="m-hint">{{ store.isAdmin() ? 'tap to switch to user' : 'tap to enter admin' }}</span>
+        </button>
+      </div>
+    </nav>
+  }
 
   @if (store.error()) { <p class="err">! {{ store.error() }}</p> }
 
@@ -70,26 +120,32 @@
     <section class="detail" [class.drag]="dragging()"
       (dragover)="$event.preventDefault(); dragging.set(true)" (dragleave)="dragging.set(false)" (drop)="onDrop($event)">
       <div class="drow" [class.done]="store.isDone(t.statusId) || store.isCancelled(t.statusId)">
-        @if (editTitle()) {
-          <input #tt class="big" [value]="t.title" autofocus (keydown.enter)="saveTitle(t.id, t.title, tt.value)" />
-          <button class="ok" (click)="saveTitle(t.id, t.title, tt.value)">ok</button>
-        } @else {
-          <h1 class="big">{{ t.title }}</h1>
-          <button (click)="editTitle.set(true)">edit</button>
-        }
-        @if (t.parentId === null) {
-          <button (click)="toggleKind(t.id, t.kind)" title="move between short-term [tasks] and long-term [books]">
-            [-&gt; {{ t.kind === 'book' ? 'tasks' : 'books' }}]
-          </button>
-        }
-        @if (store.isAdmin()) {
-          <button (click)="saveToLibrary(t.id)" title="save this task tree as a template in the shared library">[-&gt; library]</button>
-        }
-        <select [value]="t.statusId" (change)="store.updateTask(t.id, { statusId: $any($event.target).value })">
-          @for (s of store.statuses(); track s.id) {
-            <option [value]="s.id" [selected]="s.id === t.statusId">{{ s.name }}</option>
+        <div class="drow-main">
+          @if (editTitle()) {
+            <input #tt class="big" [value]="t.title" autofocus (keydown.enter)="saveTitle(t.id, t.title, tt.value)" />
+            <button class="ok" (click)="saveTitle(t.id, t.title, tt.value)">ok</button>
+          } @else {
+            <h1 class="big">{{ t.title }}</h1>
+            <button (click)="editTitle.set(true)">edit</button>
           }
-        </select>
+        </div>
+        <div class="drow-actions">
+          @if (t.parentId === null) {
+            <button (click)="toggleKind(t.id, t.kind)" title="move between short-term [tasks] and long-term [books]">
+              [-&gt; {{ t.kind === 'book' ? 'tasks' : 'books' }}]
+            </button>
+          }
+          @if (store.isAdmin()) {
+            <button (click)="saveToLibrary(t.id)" title="save this task tree as a template in the shared library">[-&gt; library]</button>
+          }
+        </div>
+        <div class="drow-status">
+          <select [value]="t.statusId" (change)="store.updateTask(t.id, { statusId: $any($event.target).value })">
+            @for (s of store.statuses(); track s.id) {
+              <option [value]="s.id" [selected]="s.id === t.statusId">{{ s.name }}</option>
+            }
+          </select>
+        </div>
       </div>
 
       <div class="prog">
@@ -98,11 +154,15 @@
       </div>
 
       <h2># deadline</h2>
-      <div class="srow">
+      <div class="srow deadline-row">
         <input #dueIn type="datetime-local" [value]="t.dueAt || ''" (keydown.enter)="saveDue(t.id, dueIn.value)" />
-        <button class="ok" (click)="saveDue(t.id, dueIn.value)">ok</button>
+        <div class="srow-btns">
+          <button class="ok" (click)="saveDue(t.id, dueIn.value)">ok</button>
+          @if (t.dueAt) {
+            <button class="danger" (click)="clearDue(t.id)">clear</button>
+          }
+        </div>
         @if (t.dueAt) {
-          <button class="danger" (click)="clearDue(t.id)">clear</button>
           <span class="hint">set: {{ formatDue(t.dueAt) }}</span>
           @if (store.isOverdue(t)) {
             <span class="err">! overdue</span>

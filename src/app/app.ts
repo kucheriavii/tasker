@@ -19,6 +19,7 @@ export class App {
   /** Active top-level tab: 'task' = short-term tasks, 'book' = long-term books/courses. */
   readonly tab = signal<'task' | 'book'>('task');
   readonly panel = signal<'none' | 'statuses' | 'trash' | 'import' | 'library'>('none');
+  readonly menuOpen = signal(false);
   readonly dragging = signal(false);
   readonly rootDrop = signal(false);
   readonly editTitle = signal(false);
@@ -42,6 +43,29 @@ export class App {
   switchTab(t: 'task' | 'book') {
     this.tab.set(t);
     this.store.openId.set(null);
+  }
+
+  toggleMenu() {
+    this.menuOpen.update((v) => !v);
+  }
+
+  closeMenu() {
+    this.menuOpen.set(false);
+  }
+
+  switchTabMobile(t: 'task' | 'book') {
+    this.switchTab(t);
+    this.closeMenu();
+  }
+
+  toggleMobile(p: 'statuses' | 'trash' | 'import' | 'library') {
+    this.toggle(p);
+    this.closeMenu();
+  }
+
+  async toggleRoleMobile() {
+    this.closeMenu();
+    await this.toggleRole();
   }
 
   async toggleRole() {

@@ -2,6 +2,7 @@ import { Component, computed, inject, output, signal } from '@angular/core';
 import { LibraryItem, LibraryNode } from './models';
 import { PopupService } from './popup';
 import { TaskStore } from './task-store';
+import { I18nService } from './i18n';
 
 /** Shared repository of books, YouTube playlists, and courses (no duplicates, Admin-only edit/delete). */
 @Component({
@@ -9,15 +10,14 @@ import { TaskStore } from './task-store';
   template: `
     <section class="panel">
       <div class="head">
-        <h2># library (shared books / playlists / courses)</h2>
-        <button (click)="closed.emit()">[close]</button>
+        <h2>{{ i18n.t().libraryHeading }}</h2>
+        <button (click)="closed.emit()">[{{ i18n.t().close }}]</button>
       </div>
       <p class="hint">
-        shared catalog of books, playlists and courses.
         @if (store.isAdmin()) {
-          you are <strong>admin</strong>: you can edit or delete items here, or add new ones via [import].
+          {{ i18n.t().libraryHintAdmin }}
         } @else {
-          you are in <strong>user</strong> mode: pick any item to clone into your [books] tab.
+          {{ i18n.t().libraryHintUser }}
         }
       </p>
 
@@ -25,9 +25,9 @@ import { TaskStore } from './task-store';
 
       <div class="filters">
         @for (f of kinds; track f) {
-          <button [class.ok]="filter() === f" (click)="filter.set(f)">[{{ f }}]</button>
+          <button [class.ok]="filter() === f" (click)="filter.set(f)">[{{ getKindLabel(f) }}]</button>
         }
-        <input placeholder="search library..." [value]="query()" (input)="query.set($any($event.target).value)" />
+        <input [placeholder]="i18n.t().searchLibrary" [value]="query()" (input)="query.set($any($event.target).value)" />
       </div>
 
       @for (item of filtered(); track item.id) {
@@ -35,17 +35,17 @@ import { TaskStore } from './task-store';
           @if (store.isAdmin() && editingId() === item.id && editCopy(); as ed) {
             <div class="crow">
               <select [value]="ed.kind" (change)="ed.kind = $any($event.target).value">
-                <option value="book">book</option>
-                <option value="playlist">playlist</option>
-                <option value="course">course</option>
-                <option value="other">other</option>
+                <option value="book">{{ i18n.t().filterBook }}</option>
+                <option value="playlist">{{ i18n.t().filterPlaylist }}</option>
+                <option value="course">{{ i18n.t().filterCourse }}</option>
+                <option value="other">{{ i18n.t().filterOther }}</option>
               </select>
-              <input class="title-in" [value]="ed.title" (input)="ed.title = $any($event.target).value" placeholder="title..." />
-              <button class="ok" (click)="saveEdit(item.id)">ok</button>
-              <button (click)="cancelEdit()">cancel</button>
+              <input class="title-in" [value]="ed.title" (input)="ed.title = $any($event.target).value" [placeholder]="i18n.t().titlePlaceholder" />
+              <button class="ok" (click)="saveEdit(item.id)">{{ i18n.t().ok }}</button>
+              <button (click)="cancelEdit()">{{ i18n.t().cancel }}</button>
             </div>
-            <input class="full-in" [value]="ed.description" (input)="ed.description = $any($event.target).value" placeholder="description..." />
-            <input class="full-in" [value]="ed.sourceUrl" (input)="ed.sourceUrl = $any($event.target).value" placeholder="source url..." />
+            <input class="full-in" [value]="ed.description" (input)="ed.description = $any($event.target).value" [placeholder]="i18n.t().descPlaceholder" />
+            <input class="full-in" [value]="ed.sourceUrl" (input)="ed.sourceUrl = $any($event.target).value" [placeholder]="i18n.t().sourceUrlPlaceholder" />
 
             <div class="ed-items">
               @for (n of ed.items; track $index; let i = $index) {
@@ -68,24 +68,24 @@ import { TaskStore } from './task-store';
               }
               <form class="erow" (submit)="$event.preventDefault(); addNode(ed.items, newIn)">
                 <input #newIn placeholder="+ add item..." />
-                <button type="submit">add</button>
+                <button type="submit">{{ i18n.t().addBtn }}</button>
               </form>
             </div>
           } @else {
             <div class="crow">
-              <span class="tag">[{{ item.kind }}]</span>
+              <span class="tag">[{{ getKindLabel(item.kind) }}]</span>
               <strong class="title">{{ item.title }}</strong>
-              <span class="hint">{{ item.totalItems }} items</span>
+              <span class="hint">{{ item.totalItems }}</span>
               @if (item.sourceUrl) {
                 <a class="link" [href]="item.sourceUrl" target="_blank" rel="noopener">link</a>
               }
-              <button (click)="togglePreview(item.id)">{{ expandedId() === item.id ? 'hide' : 'preview' }}</button>
+              <button (click)="togglePreview(item.id)">{{ expandedId() === item.id ? (i18n.lang() === 'uk' ? 'сховати' : 'hide') : (i18n.lang() === 'uk' ? 'перегляд' : 'preview') }}</button>
               @if (store.isAdmin()) {
-                <button (click)="startEdit(item)">edit</button>
+                <button (click)="startEdit(item)">{{ i18n.t().edit }}</button>
               }
-              <button class="ok" (click)="cloneItem(item.id)">+ to my books</button>
+              <button class="ok" (click)="cloneItem(item.id)">+ {{ i18n.t().cloneToBooks }}</button>
               @if (store.isAdmin()) {
-                <button class="danger" (click)="removeItem(item.id)" title="delete from library">x</button>
+                <button class="danger" (click)="removeItem(item.id)" [title]="i18n.t().deleteLibraryItem">x</button>
               }
             </div>
             @if (item.description) {
@@ -146,9 +146,21 @@ import { TaskStore } from './task-store';
 export class LibraryPanel {
   readonly store = inject(TaskStore);
   private popup = inject(PopupService);
+  readonly i18n = inject(I18nService);
   readonly closed = output<void>();
 
   readonly kinds: ('all' | LibraryItem['kind'])[] = ['all', 'book', 'playlist', 'course', 'other'];
+
+  getKindLabel(k: 'all' | LibraryItem['kind']): string {
+    const t = this.i18n.t();
+    switch (k) {
+      case 'all': return t.filterAll;
+      case 'book': return t.filterBook;
+      case 'playlist': return t.filterPlaylist;
+      case 'course': return t.filterCourse;
+      case 'other': return t.filterOther;
+    }
+  }
   readonly filter = signal<'all' | LibraryItem['kind']>('all');
   readonly query = signal('');
   readonly error = signal<string | null>(null);
@@ -232,7 +244,9 @@ export class LibraryPanel {
   }
 
   async removeItem(libId: string) {
-    if (await this.popup.confirm('Delete this template from the shared library?', 'delete library item')) {
+    const it = this.store.library().find((x) => x.id === libId);
+    const title = it ? it.title : 'item';
+    if (await this.popup.confirm(this.i18n.t().confirmDeleteLibraryItem(title), this.i18n.t().deleteLibraryItem)) {
       this.store.deleteLibraryItem(libId);
     }
   }

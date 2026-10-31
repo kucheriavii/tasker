@@ -3,6 +3,7 @@ import { Task } from './models';
 import { PopupService } from './popup';
 import { TaskStore } from './task-store';
 import { Progress } from './progress';
+import { I18nService } from './i18n';
 
 /** Recursive node: renders a task and its subtasks (unlimited depth). Tap the row to open the task; drag to reorder or nest. */
 @Component({
@@ -41,10 +42,10 @@ import { Progress } from './progress';
               <input #ed class="title-edit" [value]="task().title" autofocus
                 (keydown.enter)="save(ed.value, dueEd.value)" (keydown.escape)="editing.set(false)" />
               <div class="edit-tools">
-                <input #dueEd type="datetime-local" class="due-in" [value]="task().dueAt || ''" title="deadline" />
+                <input #dueEd type="datetime-local" class="due-in" [value]="task().dueAt || ''" [title]="i18n.t().deadlineTitle" />
                 <div class="edit-btns">
-                  <button class="ok" (click)="save(ed.value, dueEd.value)">ok</button>
-                  <button (click)="editing.set(false)">cancel</button>
+                  <button class="ok" (click)="save(ed.value, dueEd.value)">{{ i18n.t().ok }}</button>
+                  <button (click)="editing.set(false)">{{ i18n.t().cancel }}</button>
                 </div>
               </div>
             </div>
@@ -56,8 +57,8 @@ import { Progress } from './progress';
         @if (!editing() && (task().dueAt || task().description || task().imageIds.length)) {
           <div class="badges">
             @if (task().dueAt) {
-              <span class="due-badge" [class.overdue]="store.isOverdue(task())" [title]="'due: ' + formatDue(task().dueAt!)">
-                {{ store.isOverdue(task()) ? '! due: ' : 'due: ' }}{{ formatDue(task().dueAt!) }}
+              <span class="due-badge" [class.overdue]="store.isOverdue(task())" [title]="i18n.t().duePrefix + formatDue(task().dueAt!)">
+                {{ store.isOverdue(task()) ? '! ' + i18n.t().duePrefix : i18n.t().duePrefix }}{{ formatDue(task().dueAt!) }}
               </span>
             }
             @if (task().description) { <span class="badge" title="has description">[desc]</span> }
@@ -81,9 +82,9 @@ import { Progress } from './progress';
           <div class="meta-right">
             <app-progress [value]="task().progress" [done]="task().leafDone" [total]="task().leafTotal" />
             <div class="row-btns">
-              <button class="icon" (click)="editing.set(true)">edit</button>
-              <button class="icon" (click)="adding.set(!adding())">+sub</button>
-              <button class="icon danger" (click)="remove()" title="move to trash">x</button>
+              <button class="icon" (click)="editing.set(true)">{{ i18n.t().edit }}</button>
+              <button class="icon" (click)="adding.set(!adding())">{{ i18n.t().addSubtaskBtn }}</button>
+              <button class="icon danger" (click)="remove()" [title]="i18n.t().deleteBtn">{{ i18n.t().deleteBtn }}</button>
             </div>
           </div>
         </div>
@@ -92,12 +93,12 @@ import { Progress } from './progress';
 
     @if (adding()) {
       <form class="add indent addrow" (submit)="$event.preventDefault(); addChild(inp.value, subDue.value); inp.value = ''; subDue.value = ''">
-        <input #inp class="sub-title" placeholder="subtask..." autofocus (keydown.escape)="adding.set(false)" />
+        <input #inp class="sub-title" [placeholder]="i18n.t().subtaskPlaceholder" autofocus (keydown.escape)="adding.set(false)" />
         <div class="edit-tools">
-          <input #subDue type="datetime-local" class="due-in" title="optional deadline" />
+          <input #subDue type="datetime-local" class="due-in" [title]="i18n.t().deadlineTitle" />
           <div class="edit-btns">
-            <button type="submit" class="ok">add</button>
-            <button type="button" (click)="adding.set(false)">cancel</button>
+            <button type="submit" class="ok">{{ i18n.t().addBtn }}</button>
+            <button type="button" (click)="adding.set(false)">{{ i18n.t().cancel }}</button>
           </div>
         </div>
       </form>
@@ -375,6 +376,7 @@ export class TaskItem {
   readonly task = input.required<Task>();
   readonly store = inject(TaskStore);
   private popup = inject(PopupService);
+  readonly i18n = inject(I18nService);
   readonly editing = signal(false);
   readonly adding = signal(false);
   readonly dropZone = signal<'before' | 'after' | 'inside' | null>(null);
@@ -410,9 +412,9 @@ export class TaskItem {
   async remove() {
     const t = this.task();
     const msg = t.children.length
-      ? `Delete "${t.title}" and its subtasks?`
-      : `Delete "${t.title}"?`;
-    if (await this.popup.confirm(msg, 'delete task')) {
+      ? this.i18n.t().confirmDeleteTaskWithSubs(t.title)
+      : this.i18n.t().confirmDeleteTask(t.title);
+    if (await this.popup.confirm(msg, this.i18n.t().deleteBtn)) {
       this.store.removeTask(t.id);
     }
   }

@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { LibraryItem } from './models';
 import { PopupService } from './popup';
 import { TaskStore } from './task-store';
+import { I18nService } from './i18n';
 
 interface DraftChild { title: string; description?: string; }
 interface DraftItem { title: string; description?: string; children: DraftChild[]; }
@@ -25,11 +26,11 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
     <section class="panel">
       <div class="head">
         <div class="tabs">
-          <h2># import</h2>
+          <h2>{{ i18n.t().importHeading }}</h2>
           <button [class.ok]="tab() === 'source'" (click)="tab.set('source')">[link / text / screenshot]</button>
           <button [class.ok]="tab() === 'ai'" (click)="tab.set('ai')">[+ ai task]</button>
         </div>
-        <button (click)="closed.emit()">[close]</button>
+        <button (click)="closed.emit()">[{{ i18n.t().close }}]</button>
       </div>
 
       @if (!draft()) {
@@ -109,12 +110,12 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
           @if (error()) { <p class="err">! {{ error() }}</p> }
 
           <div class="actions">
-            <button class="ok" [disabled]="busy()" (click)="createIn('book')">+ to [books] ({{ count() }})</button>
-            <button class="ok" [disabled]="busy()" (click)="createIn('task')">+ to [tasks] ({{ count() }})</button>
+            <button class="ok" [disabled]="busy()" (click)="createIn('book')">+ to [{{ i18n.t().books }}] ({{ count() }})</button>
+            <button class="ok" [disabled]="busy()" (click)="createIn('task')">+ to [{{ i18n.t().tasks }}] ({{ count() }})</button>
             @if (store.isAdmin()) {
-              <button class="ok" [disabled]="busy()" (click)="sendToLibrary()">-&gt; to library</button>
+              <button class="ok" [disabled]="busy()" (click)="sendToLibrary()">{{ i18n.t().sendToLibraryBtn }}</button>
             }
-            <button class="danger" [disabled]="busy()" (click)="confirmDiscardDraft()">delete task</button>
+            <button class="danger" [disabled]="busy()" (click)="confirmDiscardDraft()">{{ i18n.lang() === 'uk' ? 'видалити чернетку' : 'delete draft' }}</button>
           </div>
         </div>
       }
@@ -153,6 +154,7 @@ export class ImportPanel {
   private http = inject(HttpClient);
   private popup = inject(PopupService);
   readonly store = inject(TaskStore);
+  readonly i18n = inject(I18nService);
   readonly closed = output<void>();
 
   readonly tab = signal<'source' | 'ai'>('source');

@@ -28,6 +28,17 @@ h2 { font-size: 13px; margin: 16px 0 6px; }
 .grow { flex: 1; }
 button.danger:hover:not(:disabled) { color: var(--danger); border-color: var(--danger); }
 
+.lang-btn {
+  font-weight: 700;
+  color: var(--accent);
+  border-color: var(--line);
+  text-transform: uppercase;
+}
+.lang-btn:hover {
+  border-color: var(--accent);
+  background: #f0f7ff;
+}
+
 .add { margin: 8px 0; }
 .add input { width: 100%; }
 

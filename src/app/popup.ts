@@ -1,4 +1,5 @@
 import { Component, Injectable, inject, signal } from '@angular/core';
+import { I18nService } from './i18n';
 
 export interface PopupReq {
   kind: 'alert' | 'confirm' | 'prompt';
@@ -70,9 +71,9 @@ export class PopupService {
           }
 
           <div class="mactions">
-            <button class="ok" autofocus (click)="onOk(p)">[ok]</button>
+            <button class="ok" autofocus (click)="onOk(p)">[{{ i18n.t().ok }}]</button>
             @if (p.kind !== 'alert') {
-              <button (click)="onCancel(p)">[cancel]</button>
+              <button (click)="onCancel(p)">[{{ i18n.t().cancel }}]</button>
             }
           </div>
         </div>
@@ -102,6 +103,7 @@ export class PopupService {
 })
 export class PopupModal {
   readonly svc = inject(PopupService);
+  readonly i18n = inject(I18nService);
 
   onOk(p: PopupReq) {
     if (p.kind === 'prompt') this.svc.close(p.value ?? '');

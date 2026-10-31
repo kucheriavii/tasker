@@ -2,18 +2,23 @@
   <header>
     <div class="brand">
       <h1 (click)="store.openId.set(null); closeMenu()" style="cursor:pointer">&gt; tasker<span class="cursor">_</span></h1>
-      <button class="brand-tab" [class.ok]="tab() === 'task' && !store.open()" (click)="switchTab('task')" title="short-term tasks">[tasks:{{ store.tree().length }}]</button>
-      <button class="brand-tab" [class.ok]="tab() === 'book' && !store.open()" (click)="switchTab('book')" title="long-term books, playlists & courses">[books:{{ store.books().length }}]</button>
+      <button class="brand-tab" [class.ok]="tab() === 'task' && !store.open()" (click)="switchTab('task')" [title]="i18n.t().tasksDesc">[{{ i18n.t().tasks }}:{{ store.tree().length }}]</button>
+      <button class="brand-tab" [class.ok]="tab() === 'book' && !store.open()" (click)="switchTab('book')" [title]="i18n.t().booksDesc">[{{ i18n.t().books }}:{{ store.books().length }}]</button>
     </div>
     <div class="nav-btns">
-      <button [class.ok]="store.isAdmin()" (click)="toggleRole()" title="switch role (user / admin)">[role:{{ store.role() }}]</button>
-      <button [class.ok]="panel() === 'import'" (click)="toggle('import')">[import]</button>
-      <button [class.ok]="panel() === 'library'" (click)="toggle('library')">[library{{ store.library().length ? ':' + store.library().length : '' }}]</button>
-      <button [class.ok]="panel() === 'trash'" (click)="toggle('trash')">[trash{{ store.trash().length ? ':' + store.trash().length : '' }}]</button>
-      <button [class.ok]="panel() === 'statuses'" (click)="toggle('statuses')">[statuses]</button>
+      <button [class.ok]="store.isAdmin()" (click)="toggleRole()" [title]="store.isAdmin() ? i18n.t().roleSwitchToUser : i18n.t().roleSwitchToAdmin">
+        [{{ i18n.t().role }}:{{ store.isAdmin() ? i18n.t().roleAdmin : i18n.t().roleUser }}]
+      </button>
+      <button [class.ok]="panel() === 'import'" (click)="toggle('import')">[{{ i18n.t().import }}]</button>
+      <button [class.ok]="panel() === 'library'" (click)="toggle('library')">[{{ i18n.t().library }}{{ store.library().length ? ':' + store.library().length : '' }}]</button>
+      <button [class.ok]="panel() === 'trash'" (click)="toggle('trash')">[{{ i18n.t().trash }}{{ store.trash().length ? ':' + store.trash().length : '' }}]</button>
+      <button [class.ok]="panel() === 'statuses'" (click)="toggle('statuses')">[{{ i18n.t().statuses }}]</button>
+      <button class="lang-btn" (click)="i18n.toggleLang()" [title]="i18n.lang() === 'uk' ? 'Switch to English' : 'Перемкнути на українську'">
+        [{{ i18n.lang() === 'uk' ? 'ua' : 'en' }}]
+      </button>
     </div>
-    <button class="hamburger-btn" (click)="toggleMenu()" [class.active]="menuOpen()" [attr.aria-label]="menuOpen() ? 'Close menu' : 'Open menu'">
-      {{ menuOpen() ? '[✕ close]' : '[≡ menu]' }}
+    <button class="hamburger-btn" (click)="toggleMenu()" [class.active]="menuOpen()" [attr.aria-label]="menuOpen() ? i18n.t().close : i18n.t().menu">
+      {{ menuOpen() ? '[✕ ' + i18n.t().close + ']' : '[≡ ' + i18n.t().menu + ']' }}
     </button>
   </header>
 
@@ -21,33 +26,33 @@
     <div class="mobile-backdrop" (click)="closeMenu()"></div>
     <nav class="mobile-nav" (click)="$event.stopPropagation()">
       <div class="mobile-nav-section">
-        <div class="mobile-nav-label"># views</div>
+        <div class="mobile-nav-label">{{ i18n.t().viewsSection }}</div>
         <button class="mobile-nav-item" [class.ok]="tab() === 'task' && !store.open()" (click)="switchTabMobile('task')">
-          <span class="m-title">[tasks] short-term</span>
+          <span class="m-title">[{{ i18n.t().tasks }}]</span>
           <span class="m-badge">{{ store.tree().length }}</span>
         </button>
         <button class="mobile-nav-item" [class.ok]="tab() === 'book' && !store.open()" (click)="switchTabMobile('book')">
-          <span class="m-title">[books] long-term</span>
+          <span class="m-title">[{{ i18n.t().books }}]</span>
           <span class="m-badge">{{ store.books().length }}</span>
         </button>
       </div>
 
       <div class="mobile-nav-section">
-        <div class="mobile-nav-label"># tools &amp; catalog</div>
+        <div class="mobile-nav-label">{{ i18n.t().toolsSection }}</div>
         <button class="mobile-nav-item" [class.ok]="panel() === 'import'" (click)="toggleMobile('import')">
-          <span class="m-title">[import] add / ai task</span>
+          <span class="m-title">[{{ i18n.t().import }}] {{ i18n.t().importDesc }}</span>
         </button>
         <button class="mobile-nav-item" [class.ok]="panel() === 'library'" (click)="toggleMobile('library')">
-          <span class="m-title">[library] shared repository</span>
+          <span class="m-title">[{{ i18n.t().library }}] {{ i18n.t().libraryDesc }}</span>
           @if (store.library().length) {
             <span class="m-badge">{{ store.library().length }}</span>
           }
         </button>
         <button class="mobile-nav-item" [class.ok]="panel() === 'statuses'" (click)="toggleMobile('statuses')">
-          <span class="m-title">[statuses] manage tags</span>
+          <span class="m-title">[{{ i18n.t().statuses }}] {{ i18n.t().statusesDesc }}</span>
         </button>
         <button class="mobile-nav-item" [class.ok]="panel() === 'trash'" (click)="toggleMobile('trash')">
-          <span class="m-title">[trash] deleted tasks</span>
+          <span class="m-title">[{{ i18n.t().trash }}] {{ i18n.t().trashDesc }}</span>
           @if (store.trash().length) {
             <span class="m-badge">{{ store.trash().length }}</span>
           }
@@ -55,10 +60,14 @@
       </div>
 
       <div class="mobile-nav-section">
-        <div class="mobile-nav-label"># access</div>
+        <div class="mobile-nav-label">{{ i18n.t().accessSection }}</div>
         <button class="mobile-nav-item role-item" [class.ok]="store.isAdmin()" (click)="toggleRoleMobile()">
-          <span class="m-title">[role: {{ store.role() }}]</span>
-          <span class="m-hint">{{ store.isAdmin() ? 'tap to switch to user' : 'tap to enter admin' }}</span>
+          <span class="m-title">[{{ i18n.t().role }}: {{ store.isAdmin() ? i18n.t().roleAdmin : i18n.t().roleUser }}]</span>
+          <span class="m-hint">{{ store.isAdmin() ? i18n.t().roleSwitchToUser : i18n.t().roleSwitchToAdmin }}</span>
+        </button>
+        <button class="mobile-nav-item" (click)="i18n.toggleLang(); closeMenu()">
+          <span class="m-title">[{{ i18n.t().lang }}]</span>
+          <span class="m-hint">{{ i18n.lang() === 'uk' ? 'switch to English' : 'перемкнути на українську' }}</span>
         </button>
       </div>
     </nav>
@@ -71,39 +80,39 @@
 
   @if (panel() === 'statuses') {
     <section class="panel">
-      <h2># statuses</h2>
-      <p class="hint">first = default for new tasks. done = struck through and counts as finished; cancel = struck through, dimmed and excluded from progress; active = "in progress": parents of a task that is active or done switch to it. A done task makes all its subtasks done.</p>
+      <h2>{{ i18n.t().statusesHeading }}</h2>
+      <p class="hint">{{ i18n.t().statusesHint }}</p>
       @for (s of store.statuses(); track s.id; let i = $index) {
         <div class="srow">
           <input [value]="s.name" (change)="store.updateStatus(s.id, { name: $any($event.target).value.trim() || s.name })" />
-          <label><input type="checkbox" [checked]="s.done" (change)="store.updateStatus(s.id, { done: $any($event.target).checked })" /> done</label>
-          <label><input type="checkbox" [checked]="s.cancelled" (change)="store.updateStatus(s.id, { cancelled: $any($event.target).checked })" /> cancel</label>
-          <label><input type="checkbox" [checked]="s.active" (change)="store.updateStatus(s.id, { active: $any($event.target).checked })" /> active</label>
+          <label><input type="checkbox" [checked]="s.done" (change)="store.updateStatus(s.id, { done: $any($event.target).checked })" /> {{ i18n.t().doneLabel }}</label>
+          <label><input type="checkbox" [checked]="s.cancelled" (change)="store.updateStatus(s.id, { cancelled: $any($event.target).checked })" /> {{ i18n.t().cancelLabel }}</label>
+          <label><input type="checkbox" [checked]="s.active" (change)="store.updateStatus(s.id, { active: $any($event.target).checked })" /> {{ i18n.t().activeLabel }}</label>
           <button class="icon" [disabled]="i === 0" (click)="store.moveStatus(s.id, -1)">^</button>
           <button class="icon" [disabled]="i === store.statuses().length - 1" (click)="store.moveStatus(s.id, 1)">v</button>
           <button class="icon danger" [disabled]="store.statuses().length <= 1" (click)="removeStatus(s.id, s.name)">x</button>
         </div>
       }
       <form class="add" (submit)="$event.preventDefault(); store.addStatus(st.value); st.value = ''">
-        <input #st placeholder="new status..." />
+        <input #st [placeholder]="i18n.t().newStatusPlaceholder" />
       </form>
     </section>
   }
 
   @if (panel() === 'trash') {
     <section class="panel">
-      <h2># trash</h2>
+      <h2>{{ i18n.t().trashHeading }}</h2>
       @for (t of store.trash(); track t.id) {
         <div class="srow">
           <span class="grow">{{ t.title }} <span class="hint">{{ t.deletedAt }}</span></span>
-          <button (click)="store.restoreTask(t.id)">restore</button>
-          <button class="danger" (click)="purgeFromTrash(t.id)">purge</button>
+          <button (click)="store.restoreTask(t.id)">{{ i18n.t().restoreBtn }}</button>
+          <button class="danger" (click)="purgeFromTrash(t.id)">{{ i18n.t().purgeBtn }}</button>
         </div>
       } @empty {
-        <p class="hint">trash is empty.</p>
+        <p class="hint">{{ i18n.t().trashEmpty }}</p>
       }
       @if (store.trash().length) {
-        <button class="danger" (click)="emptyTrash()">[empty trash]</button>
+        <button class="danger" (click)="emptyTrash()">{{ i18n.t().emptyTrashBtn }}</button>
       }
     </section>
   }
@@ -111,7 +120,7 @@
   @if (store.open(); as t) {
     <!-- ===== task detail ===== -->
     <nav class="crumbs">
-      <button (click)="store.openId.set(null)">~ {{ tab() === 'book' ? 'books' : 'tasks' }}</button>
+      <button (click)="store.openId.set(null)">~ {{ tab() === 'book' ? i18n.t().books : i18n.t().tasks }}</button>
       @for (b of store.breadcrumbs(); track b.id) {
         / <button (click)="store.openId.set(b.id)" [disabled]="b.id === t.id">{{ b.title }}</button>
       }
@@ -123,20 +132,20 @@
         <div class="drow-main">
           @if (editTitle()) {
             <input #tt class="big" [value]="t.title" autofocus (keydown.enter)="saveTitle(t.id, t.title, tt.value)" />
-            <button class="ok" (click)="saveTitle(t.id, t.title, tt.value)">ok</button>
+            <button class="ok" (click)="saveTitle(t.id, t.title, tt.value)">{{ i18n.t().ok }}</button>
           } @else {
             <h1 class="big">{{ t.title }}</h1>
-            <button (click)="editTitle.set(true)">edit</button>
+            <button (click)="editTitle.set(true)">{{ i18n.t().edit }}</button>
           }
         </div>
         <div class="drow-actions">
           @if (t.parentId === null) {
-            <button (click)="toggleKind(t.id, t.kind)" title="move between short-term [tasks] and long-term [books]">
-              [-&gt; {{ t.kind === 'book' ? 'tasks' : 'books' }}]
+            <button (click)="toggleKind(t.id, t.kind)" [title]="'move to ' + (t.kind === 'book' ? i18n.t().tasks : i18n.t().books)">
+              [-&gt; {{ t.kind === 'book' ? i18n.t().tasks : i18n.t().books }}]
             </button>
           }
           @if (store.isAdmin()) {
-            <button (click)="saveToLibrary(t.id)" title="save this task tree as a template in the shared library">[-&gt; library]</button>
+            <button (click)="saveToLibrary(t.id)" [title]="'save to library'">[-&gt; {{ i18n.t().library }}]</button>
           }
         </div>
         <div class="drow-status">
@@ -150,39 +159,39 @@
 
       <div class="prog">
         <app-progress [value]="t.progress" [done]="t.leafDone" [total]="t.leafTotal" />
-        <span class="hint">{{ t.leafDone }}/{{ t.leafTotal }} {{ t.children.length ? 'leaf tasks done' : 'this task' }}</span>
+        <span class="hint">{{ t.leafDone }}/{{ t.leafTotal }} {{ t.children.length ? i18n.t().leafDoneSuffix : i18n.t().thisTaskDone }}</span>
       </div>
 
-      <h2># description
-        @if (editDesc()) { <button class="ok" (click)="saveDescription(t.id, t.description, descBox()?.nativeElement?.value ?? t.description)">ok</button> }
-        @else { <button (click)="editDesc.set(true)">edit</button> }
+      <h2>{{ i18n.t().descHeading }}
+        @if (editDesc()) { <button class="ok" (click)="saveDescription(t.id, t.description, descBox()?.nativeElement?.value ?? t.description)">{{ i18n.t().ok }}</button> }
+        @else { <button (click)="editDesc.set(true)">{{ i18n.t().edit }}</button> }
       </h2>
       @if (editDesc()) {
-        <textarea #dd rows="6" autofocus placeholder="description..." [value]="t.description"></textarea>
+        <textarea #dd rows="6" autofocus [placeholder]="i18n.t().descPlaceholder" [value]="t.description"></textarea>
       } @else {
-        <p class="desc">{{ t.description || '(empty)' }}</p>
+        <p class="desc">{{ t.description || i18n.t().emptyDesc }}</p>
       }
 
-      <h2># deadline</h2>
+      <h2>{{ i18n.t().deadlineHeading }}</h2>
       <div class="srow deadline-row">
         <input #dueIn type="datetime-local" [value]="t.dueAt || ''" (keydown.enter)="saveDue(t.id, dueIn.value)" />
         <div class="srow-btns">
-          <button class="ok" (click)="saveDue(t.id, dueIn.value)">ok</button>
+          <button class="ok" (click)="saveDue(t.id, dueIn.value)">{{ i18n.t().ok }}</button>
           @if (t.dueAt) {
-            <button class="danger" (click)="clearDue(t.id)">clear</button>
+            <button class="danger" (click)="clearDue(t.id)">{{ i18n.t().clear }}</button>
           }
         </div>
         @if (t.dueAt) {
-          <span class="hint">set: {{ formatDue(t.dueAt) }}</span>
+          <span class="hint">{{ i18n.t().setAt }} {{ formatDue(t.dueAt) }}</span>
           @if (store.isOverdue(t)) {
-            <span class="due-badge overdue">! overdue</span>
+            <span class="due-badge overdue">{{ i18n.t().overdue }}</span>
           }
         } @else {
-          <span class="hint">no deadline set</span>
+          <span class="hint">{{ i18n.t().noDeadline }}</span>
         }
       </div>
 
-      <h2># images</h2>
+      <h2>{{ i18n.t().imagesHeading }}</h2>
       <div class="imgs">
         @for (id of t.imageIds; track id) {
           <figure>
@@ -192,37 +201,37 @@
         }
       </div>
       <p class="hint">
-        drop files here, paste (Ctrl+V), or
-        <button (click)="f.click()">[add image]</button>
+        {{ i18n.t().dropImagesHint }}
+        <button (click)="f.click()">{{ i18n.t().addImageBtn }}</button>
         <input #f type="file" accept="image/*" multiple hidden (change)="onFiles(f)" />
       </p>
 
-      <h2># subtasks</h2>
+      <h2>{{ i18n.t().subtasksHeading }}</h2>
       @if (t.children.length) {
         <div class="reset">
-          <span class="hint">set all subtasks to</span>
+          <span class="hint">{{ i18n.t().setAllSubtasksTo }}</span>
           <select #rs>
             @for (s of store.statuses(); track s.id) { <option [value]="s.id">{{ s.name }}</option> }
           </select>
-          <button (click)="resetSubtasks(t.id, rs.value, rs.selectedOptions[0].text)">reset</button>
+          <button (click)="resetSubtasks(t.id, rs.value, rs.selectedOptions[0].text)">{{ i18n.t().resetBtn }}</button>
         </div>
       }
       @for (c of t.children; track c.id) {
         <app-task-item [task]="c" />
       } @empty {
-        <p class="hint">no subtasks.</p>
+        <p class="hint">{{ i18n.t().noSubtasks }}</p>
       }
       <form class="add new-row" (submit)="$event.preventDefault(); store.addTask(t.id, sub.value, 'task', subDue.value || null); sub.value = ''; subDue.value = ''">
-        <input #sub class="grow" placeholder="new subtask, press enter..." />
-        <input #subDue type="datetime-local" class="due-pick" title="optional deadline" />
-        <button type="submit" class="ok">add</button>
+        <input #sub class="grow" [placeholder]="i18n.t().newSubtaskPlaceholder" />
+        <input #subDue type="datetime-local" class="due-pick" [title]="i18n.t().deadlineTitle" />
+        <button type="submit" class="ok">{{ i18n.t().addBtn }}</button>
       </form>
     </section>
   } @else {
     <form class="add new-row" (submit)="$event.preventDefault(); store.addTask(null, t.value, tab(), tDue.value || null); t.value = ''; tDue.value = ''">
-      <input #t class="grow" [placeholder]="tab() === 'book' ? 'new book / long-term goal, press enter...' : 'new short-term task, press enter...'" />
-      <input #tDue type="datetime-local" class="due-pick" title="optional deadline" />
-      <button type="submit" class="ok">add</button>
+      <input #t class="grow" [placeholder]="tab() === 'book' ? i18n.t().newBookPlaceholder : i18n.t().newTaskPlaceholder" />
+      <input #tDue type="datetime-local" class="due-pick" [title]="i18n.t().deadlineTitle" />
+      <button type="submit" class="ok">{{ i18n.t().addBtn }}</button>
     </form>
 
     @if (store.draggedId()) {
@@ -230,17 +239,17 @@
         (dragover)="$event.preventDefault(); rootDrop.set(true)"
         (dragleave)="rootDrop.set(false)"
         (drop)="onRootDrop($event)">
-        drop here to move item to top ({{ tab() === 'book' ? 'books' : 'tasks' }}) level
+        {{ i18n.t().dropToTopLevel }}
       </div>
     }
 
     <section class="tree">
-      <div class="tree-head"># {{ tab() === 'book' ? 'books &amp; long-term plans' : 'tasks' }}</div>
+      <div class="tree-head"># {{ tab() === 'book' ? i18n.t().booksHeading : i18n.t().tasksHeading }}</div>
       @for (task of activeList(); track task.id) {
         <app-task-item [task]="task" />
       } @empty {
         @if (store.loaded()) {
-          <p class="hint">{{ tab() === 'book' ? 'no books / long-term plans yet. use [library] or [import] to add one, or type above.' : 'no short-term tasks yet.' }}</p>
+          <p class="hint">{{ tab() === 'book' ? i18n.t().noBooksYet : i18n.t().noTasksYet }}</p>
         }
       }
     </section>

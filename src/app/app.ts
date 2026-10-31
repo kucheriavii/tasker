@@ -5,6 +5,7 @@ import { LibraryPanel } from './library-panel';
 import { PopupModal, PopupService } from './popup';
 import { TaskStore } from './task-store';
 import { Progress } from './progress';
+import { I18nService } from './i18n';
 
 @Component({
   selector: 'app-root',
@@ -16,6 +17,7 @@ import { Progress } from './progress';
 export class App {
   readonly store = inject(TaskStore);
   readonly popup = inject(PopupService);
+  readonly i18n = inject(I18nService);
   /** Active top-level tab: 'task' = short-term tasks, 'book' = long-term books/courses. */
   readonly tab = signal<'task' | 'book'>('task');
   readonly panel = signal<'none' | 'statuses' | 'trash' | 'import' | 'library'>('none');
@@ -69,49 +71,50 @@ export class App {
   }
 
   async toggleRole() {
+    const t = this.i18n.t();
     if (this.store.isAdmin()) {
-      if (await this.popup.confirm('Switch from admin to regular user mode?', 'switch role')) {
+      if (await this.popup.confirm(t.confirmSwitchToUser, t.role)) {
         this.store.logoutAdmin();
       }
       return;
     }
-    const pwd = await this.popup.prompt('Enter admin password (default: admin):', {
-      title: 'admin login',
-      placeholder: 'admin password...',
+    const pwd = await this.popup.prompt(t.adminPrompt, {
+      title: t.adminLoginTitle,
+      placeholder: t.adminPasswordPlaceholder,
       inputType: 'password',
       defaultValue: 'admin',
     });
     if (pwd === null) return;
     const ok = await this.store.loginAdmin(pwd);
-    if (!ok) await this.popup.alert('Invalid admin password.', 'access denied');
+    if (!ok) await this.popup.alert(t.invalidAdminPassword, t.accessDenied);
   }
 
   async resetSubtasks(id: string, statusId: string, name: string) {
-    if (await this.popup.confirm(`Set ALL subtasks to "${name}"?`, 'reset subtasks')) {
+    if (await this.popup.confirm(this.i18n.t().confirmResetSubtasks(name), this.i18n.t().resetBtn)) {
       this.store.setSubtasksStatus(id, statusId);
     }
   }
 
   async purgeFromTrash(id: string) {
-    if (await this.popup.confirm('Delete this task forever?', 'purge task')) {
+    if (await this.popup.confirm(this.i18n.t().confirmPurgeTask, this.i18n.t().purgeBtn)) {
       this.store.purgeTask(id);
     }
   }
 
   async emptyTrash() {
-    if (await this.popup.confirm('Empty trash? This cannot be undone.', 'empty trash')) {
+    if (await this.popup.confirm(this.i18n.t().confirmEmptyTrash, this.i18n.t().trash)) {
       this.store.emptyTrash();
     }
   }
 
   async removeImage(id: string) {
-    if (await this.popup.confirm('Delete this image?', 'delete image')) {
+    if (await this.popup.confirm(this.i18n.t().confirmDeleteImage, this.i18n.t().imagesHeading)) {
       this.store.removeImage(id);
     }
   }
 
   async removeStatus(id: string, name: string) {
-    if (await this.popup.confirm(`Delete status "${name}"?`, 'delete status')) {
+    if (await this.popup.confirm(this.i18n.t().confirmDeleteStatus(name), this.i18n.t().statuses)) {
       this.store.removeStatus(id);
     }
   }
@@ -121,7 +124,7 @@ export class App {
   }
 
   async clearDue(id: string) {
-    if (await this.popup.confirm('Delete deadline from this task?', 'delete deadline')) {
+    if (await this.popup.confirm(this.i18n.t().confirmClearDue, this.i18n.t().deadlineHeading)) {
       this.store.updateTask(id, { dueAt: null });
     }
   }

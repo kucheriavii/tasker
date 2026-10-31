@@ -153,6 +153,16 @@
         <span class="hint">{{ t.leafDone }}/{{ t.leafTotal }} {{ t.children.length ? 'leaf tasks done' : 'this task' }}</span>
       </div>
 
+      <h2># description
+        @if (editDesc()) { <button class="ok" (click)="saveDescription(t.id, t.description, descBox()?.nativeElement?.value ?? t.description)">ok</button> }
+        @else { <button (click)="editDesc.set(true)">edit</button> }
+      </h2>
+      @if (editDesc()) {
+        <textarea #dd rows="6" autofocus placeholder="description..." [value]="t.description"></textarea>
+      } @else {
+        <p class="desc">{{ t.description || '(empty)' }}</p>
+      }
+
       <h2># deadline</h2>
       <div class="srow deadline-row">
         <input #dueIn type="datetime-local" [value]="t.dueAt || ''" (keydown.enter)="saveDue(t.id, dueIn.value)" />
@@ -171,16 +181,6 @@
           <span class="hint">no deadline set</span>
         }
       </div>
-
-      <h2># description
-        @if (editDesc()) { <button class="ok" (click)="saveDescription(t.id, t.description, descBox()?.nativeElement?.value ?? t.description)">ok</button> }
-        @else { <button (click)="editDesc.set(true)">edit</button> }
-      </h2>
-      @if (editDesc()) {
-        <textarea #dd rows="6" autofocus placeholder="description..." [value]="t.description"></textarea>
-      } @else {
-        <p class="desc">{{ t.description || '(empty)' }}</p>
-      }
 
       <h2># images</h2>
       <div class="imgs">

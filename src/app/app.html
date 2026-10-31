@@ -76,7 +76,7 @@
   @if (store.error()) { <p class="err">! {{ store.error() }}</p> }
 
   @if (panel() === 'library') { <app-library (closed)="panel.set('none')" /> }
-  @if (panel() === 'import') { <app-import (closed)="panel.set('none')" /> }
+  @if (panel() === 'import') { <app-import (closed)="panel.set('none')" (savedToLibrary)="panel.set('library')" /> }
 
   @if (panel() === 'statuses') {
     <section class="panel">
@@ -144,9 +144,7 @@
               [-&gt; {{ t.kind === 'book' ? i18n.t().tasks : i18n.t().books }}]
             </button>
           }
-          @if (store.isAdmin()) {
-            <button (click)="saveToLibrary(t.id)" [title]="'save to library'">[-&gt; {{ i18n.t().library }}]</button>
-          }
+          <button (click)="saveToLibrary(t.id)" [title]="'save to library'">[-&gt; {{ i18n.t().library }}]</button>
         </div>
         <div class="drow-status">
           <select [value]="t.statusId" (change)="store.updateTask(t.id, { statusId: $any($event.target).value })">

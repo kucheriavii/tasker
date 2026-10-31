@@ -193,7 +193,6 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
   });
 
   route('POST', '/api/library', async (req, res) => {
-    requireAdmin(req);
     const { kind = 'book', title = '', description = '', sourceUrl = '', items = [] } = await readJson(req);
     const cleanTitle = title.trim();
     if (!cleanTitle) return send(res, 400, { error: 'title required' });
@@ -227,7 +226,6 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
   });
 
   route('POST', '/api/library/from-task/:id', async (req, res, { id }) => {
-    requireAdmin(req);
     const { kind = 'book', sourceUrl = '' } = await readJson(req);
     const root = q('SELECT id,title,description FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
     if (!root) return send(res, 404, { error: 'task not found' });

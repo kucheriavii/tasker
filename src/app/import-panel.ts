@@ -27,65 +27,65 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
       <div class="head">
         <div class="tabs">
           <h2>{{ i18n.t().importHeading }}</h2>
-          <button [class.ok]="tab() === 'source'" (click)="tab.set('source')">[link / text / screenshot]</button>
-          <button [class.ok]="tab() === 'ai'" (click)="tab.set('ai')">[+ ai task]</button>
+          <button [class.ok]="tab() === 'source'" (click)="tab.set('source')">[{{ i18n.lang() === 'uk' ? 'посилання / текст / скріншот' : 'link / text / screenshot' }}]</button>
+          <button [class.ok]="tab() === 'ai'" (click)="tab.set('ai')">[+ {{ i18n.t().tabAi }}]</button>
         </div>
         <button (click)="closed.emit()">[{{ i18n.t().close }}]</button>
       </div>
 
       @if (!draft()) {
         @if (tab() === 'ai') {
-          <p class="hint">don't know how to study a topic? enter it below (e.g. "Диференціальні рівняння", "iOS Swift") — AI will generate an ordered task with branches and subtasks.</p>
+          <p class="hint">{{ i18n.lang() === 'uk' ? 'не знаєте як вивчити тему? введіть її нижче (наприклад: "Диференціальні рівняння", "Docker з нуля", "iOS Swift") — AI згенерує покроковий план з підзавданнями.' : 'don\'t know how to study a topic? enter it below (e.g. "Differential equations", "iOS Swift") — AI will generate an ordered task with branches and subtasks.' }}</p>
           <input [value]="topic()" (input)="topic.set($any($event.target).value)"
-            placeholder="what do you want to learn or accomplish? (e.g. Диференціальні рівняння)..." autofocus
+            [placeholder]="i18n.lang() === 'uk' ? 'що ви хочете вивчити або зробити? (наприклад: Docker з нуля)...' : 'what do you want to learn or accomplish? (e.g. Docker from scratch)...'" autofocus
             (keydown.enter)="generateAiTask()" />
           <input [value]="details()" (input)="details.set($any($event.target).value)"
-            placeholder="optional: your level or goal (e.g. з нуля до прикладних задач)..."
+            [placeholder]="i18n.lang() === 'uk' ? 'необовʼязково: ваш рівень або мета (наприклад: за 2 тижні для роботи)...' : 'optional: your level or goal (e.g. in 2 weeks for work)...'"
             (keydown.enter)="generateAiTask()" />
 
           @if (error()) { <p class="err">! {{ error() }}</p> }
           <div class="actions">
-            <button class="ok" [disabled]="busy()" (click)="generateAiTask()">{{ busy() ? 'generating task...' : 'generate ai task' }}</button>
+            <button class="ok" [disabled]="busy()" (click)="generateAiTask()">{{ busy() ? (i18n.lang() === 'uk' ? 'генерую план...' : 'generating task...') : (i18n.lang() === 'uk' ? 'згенерувати завдання через ai' : 'generate ai task') }}</button>
           </div>
         } @else {
-          <p class="hint">paste a YouTube playlist link (works without AI key), a book / course page link, or the table of contents text, or drop / paste (Ctrl+V) / pick a screenshot.</p>
-          <input [value]="url()" (input)="onUrl($any($event.target).value)" placeholder="https://www.youtube.com/playlist?list=... or book/course URL" />
-          <textarea rows="5" [value]="text()" (input)="text.set($any($event.target).value)" placeholder="...or paste table of contents here"></textarea>
+          <p class="hint">{{ i18n.lang() === 'uk' ? 'вставте посилання на YouTube плейліст, книгу чи курс, або текст змісту/списку, або перетягніть / вставте (Ctrl+V) скріншот.' : 'paste a YouTube playlist link (works without AI key), a book / course page link, or the table of contents text, or drop / paste (Ctrl+V) / pick a screenshot.' }}</p>
+          <input [value]="url()" (input)="onUrl($any($event.target).value)" [placeholder]="i18n.lang() === 'uk' ? 'https://www.youtube.com/playlist?list=... або посилання на курс/книгу' : 'https://www.youtube.com/playlist?list=... or book/course URL'" />
+          <textarea rows="5" [value]="text()" (input)="text.set($any($event.target).value)" [placeholder]="i18n.lang() === 'uk' ? '...або вставте сюди зміст книги, список тем, розділів чи завдань' : '...or paste table of contents / list here'"></textarea>
 
           <div class="shot" (dragover)="$event.preventDefault()" (drop)="onDrop($event)">
             @if (preview()) {
-              <img [src]="preview()" alt="" /> <button (click)="confirmClearImage()">remove</button>
+              <img [src]="preview()" alt="" /> <button (click)="confirmClearImage()">{{ i18n.lang() === 'uk' ? 'видалити' : 'remove' }}</button>
             } @else {
-              <span class="hint">screenshot: drop here, Ctrl+V, or</span>
-              <button (click)="f.click()">[pick file]</button>
+              <span class="hint">{{ i18n.lang() === 'uk' ? 'скріншот: перетягніть сюди, Ctrl+V, або' : 'screenshot: drop here, Ctrl+V, or' }}</span>
+              <button (click)="f.click()">[{{ i18n.lang() === 'uk' ? 'обрати файл' : 'pick file' }}]</button>
             }
             <input #f type="file" accept="image/*" hidden (change)="onPick(f)" />
           </div>
 
           @if (error()) { <p class="err">! {{ error() }}</p> }
           <div class="actions">
-            <button class="ok" [disabled]="busy()" (click)="generate()">{{ busy() ? 'thinking...' : 'generate plan' }}</button>
+            <button class="ok" [disabled]="busy()" (click)="generate()">{{ busy() ? (i18n.lang() === 'uk' ? 'обробка...' : 'thinking...') : (i18n.lang() === 'uk' ? 'розпізнати та згенерувати план' : 'generate plan') }}</button>
           </div>
         }
       } @else {
         <div class="draft-box">
           <div class="draft-head">
-            <span class="hint">imported task draft ({{ count() }} subtasks) — edit, send to books/tasks/library, or delete:</span>
-            <button class="danger" [disabled]="busy()" (click)="confirmDiscardDraft()">[delete task]</button>
+            <span class="hint">{{ i18n.lang() === 'uk' ? 'чернетка (' + count() + ' підзавдань) — збережіть у бібліотеку, курси або завдання:' : 'draft (' + count() + ' subtasks) — save to library, courses, or tasks:' }}</span>
+            <button class="danger" [disabled]="busy()" (click)="confirmDiscardDraft()">[{{ i18n.lang() === 'uk' ? 'видалити чернетку' : 'delete draft' }}]</button>
           </div>
 
           <div class="ditem">
             <select [value]="kind()" (change)="kind.set($any($event.target).value)">
-              <option value="book">book</option>
-              <option value="playlist">playlist</option>
-              <option value="course">course</option>
-              <option value="other">other</option>
+              <option value="book">{{ i18n.t().filterBook }}</option>
+              <option value="playlist">{{ i18n.t().filterPlaylist }}</option>
+              <option value="course">{{ i18n.t().filterCourse }}</option>
+              <option value="other">{{ i18n.t().filterOther }}</option>
             </select>
-            <input class="big" [value]="draft()!.title" (input)="draft()!.title = $any($event.target).value" placeholder="task title..." />
+            <input class="big" [value]="draft()!.title" (input)="draft()!.title = $any($event.target).value" [placeholder]="i18n.t().titlePlaceholder" />
           </div>
 
           @if (draft()!.description !== undefined) {
-            <input [value]="draft()!.description || ''" (input)="draft()!.description = $any($event.target).value" placeholder="task description..." />
+            <input [value]="draft()!.description || ''" (input)="draft()!.description = $any($event.target).value" [placeholder]="i18n.t().descPlaceholder" />
           }
 
           @for (it of draft()!.items; track $index; let i = $index) {
@@ -110,11 +110,9 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
           @if (error()) { <p class="err">! {{ error() }}</p> }
 
           <div class="actions">
-            <button class="ok" [disabled]="busy()" (click)="createIn('book')">+ to [{{ i18n.t().books }}] ({{ count() }})</button>
-            <button class="ok" [disabled]="busy()" (click)="createIn('task')">+ to [{{ i18n.t().tasks }}] ({{ count() }})</button>
-            @if (store.isAdmin()) {
-              <button class="ok" [disabled]="busy()" (click)="sendToLibrary()">{{ i18n.t().sendToLibraryBtn }}</button>
-            }
+            <button class="ok" [disabled]="busy()" (click)="sendToLibrary()">{{ i18n.t().sendToLibraryBtn }}</button>
+            <button class="ok" [disabled]="busy()" (click)="createIn('book')">{{ i18n.t().sendToBooksBtn }} ({{ count() }})</button>
+            <button class="ok" [disabled]="busy()" (click)="createIn('task')">{{ i18n.t().sendToTasksBtn }} ({{ count() }})</button>
             <button class="danger" [disabled]="busy()" (click)="confirmDiscardDraft()">{{ i18n.lang() === 'uk' ? 'видалити чернетку' : 'delete draft' }}</button>
           </div>
         </div>
@@ -156,6 +154,7 @@ export class ImportPanel {
   readonly store = inject(TaskStore);
   readonly i18n = inject(I18nService);
   readonly closed = output<void>();
+  readonly savedToLibrary = output<void>();
 
   readonly tab = signal<'source' | 'ai'>('source');
   readonly topic = signal('');
@@ -296,6 +295,7 @@ export class ImportPanel {
         items: d.items,
       });
       this.discardDraft();
+      this.savedToLibrary.emit();
     } catch (e) { this.err(e, 'Could not save to library'); }
     this.busy.set(false);
   }

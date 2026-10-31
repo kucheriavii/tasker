@@ -116,7 +116,7 @@ export const DICT = {
     // Library panel
     libraryHeading: '# бібліотека (спільні книги / курси / плейлісти)',
     libraryHintAdmin: 'ви увійшли як адмін: ви можете додавати, редагувати та видаляти елементи.',
-    libraryHintUser: 'режим користувача: виберіть будь-який курс або книгу, щоб скопіювати в свій список [книги та курси].',
+    libraryHintUser: 'режим користувача: додавайте нові матеріали через [імпорт] або копіюйте будь-який курс чи книгу в свій список.',
     searchLibrary: 'пошук у бібліотеці...',
     cloneToBooks: 'додати в мої курси',
     alreadyInBooks: 'вже додано в курси',
@@ -254,7 +254,7 @@ export const DICT = {
     // Library panel
     libraryHeading: '# library (shared books / playlists / courses)',
     libraryHintAdmin: 'you are admin: you can edit or delete items here, or add new ones via [import].',
-    libraryHintUser: 'user mode: pick any item to clone into your [books & courses] tab.',
+    libraryHintUser: 'user mode: contribute new content via [import] or clone any course or book into your list.',
     searchLibrary: 'search library...',
     cloneToBooks: 'clone to my courses',
     alreadyInBooks: 'already in courses',

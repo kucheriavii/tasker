@@ -2,6 +2,7 @@ import { Component, inject, output, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { LibraryItem } from './models';
+import { PopupService } from './popup';
 import { TaskStore } from './task-store';
 
 interface DraftChild { title: string; description?: string; }
@@ -52,7 +53,7 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
 
           <div class="shot" (dragover)="$event.preventDefault()" (drop)="onDrop($event)">
             @if (preview()) {
-              <img [src]="preview()" alt="" /> <button (click)="clearImage()">remove</button>
+              <img [src]="preview()" alt="" /> <button (click)="confirmClearImage()">remove</button>
             } @else {
               <span class="hint">screenshot: drop here, Ctrl+V, or</span>
               <button (click)="f.click()">[pick file]</button>
@@ -69,7 +70,7 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
         <div class="draft-box">
           <div class="draft-head">
             <span class="hint">imported task draft ({{ count() }} subtasks) — edit, send to books/tasks/library, or delete:</span>
-            <button class="danger" [disabled]="busy()" (click)="discardDraft()">[delete task]</button>
+            <button class="danger" [disabled]="busy()" (click)="confirmDiscardDraft()">[delete task]</button>
           </div>
 
           <div class="ditem">
@@ -113,7 +114,7 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
             @if (store.isAdmin()) {
               <button class="ok" [disabled]="busy()" (click)="sendToLibrary()">-&gt; to library</button>
             }
-            <button class="danger" [disabled]="busy()" (click)="discardDraft()">delete task</button>
+            <button class="danger" [disabled]="busy()" (click)="confirmDiscardDraft()">delete task</button>
           </div>
         </div>
       }
@@ -146,6 +147,7 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
 })
 export class ImportPanel {
   private http = inject(HttpClient);
+  private popup = inject(PopupService);
   readonly store = inject(TaskStore);
   readonly closed = output<void>();
 
@@ -203,6 +205,12 @@ export class ImportPanel {
   }
   clearImage() { this.preview.set(null); this.image = null; }
 
+  async confirmClearImage() {
+    if (await this.popup.confirm('Delete this screenshot?', 'delete screenshot')) {
+      this.clearImage();
+    }
+  }
+
   /** Completely removes the draft task and resets inputs in [import]. */
   discardDraft() {
     this.draft.set(null);
@@ -212,6 +220,13 @@ export class ImportPanel {
     this.topic.set('');
     this.details.set('');
     this.clearImage();
+  }
+
+  async confirmDiscardDraft() {
+    const title = this.draft()?.title || 'this draft';
+    if (await this.popup.confirm(`Delete "${title}" from import?`, 'delete task')) {
+      this.discardDraft();
+    }
   }
 
   private err(e: any, fallback: string) {
@@ -248,8 +263,18 @@ export class ImportPanel {
     this.busy.set(false);
   }
 
-  removeItem(i: number) { this.draft()!.items.splice(i, 1); }
-  removeChild(i: number, j: number) { this.draft()!.items[i].children.splice(j, 1); }
+  async removeItem(i: number) {
+    const item = this.draft()!.items[i];
+    if (await this.popup.confirm(`Delete "${item?.title || 'item'}"?`, 'delete item')) {
+      this.draft()!.items.splice(i, 1);
+    }
+  }
+  async removeChild(i: number, j: number) {
+    const child = this.draft()!.items[i]?.children[j];
+    if (await this.popup.confirm(`Delete "${child?.title || 'subtask'}"?`, 'delete item')) {
+      this.draft()!.items[i].children.splice(j, 1);
+    }
+  }
 
   /** Sends the draft to Library and deletes it from [import]. */
   async sendToLibrary() {

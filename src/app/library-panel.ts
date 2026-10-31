@@ -54,7 +54,7 @@ import { TaskStore } from './task-store';
                   <input [value]="n.title" (input)="n.title = $any($event.target).value" />
                   <button class="icon" [disabled]="i === 0" (click)="move(ed.items, i, -1)">^</button>
                   <button class="icon" [disabled]="i === ed.items.length - 1" (click)="move(ed.items, i, 1)">v</button>
-                  <button class="icon danger" (click)="ed.items.splice(i, 1)">x</button>
+                  <button class="icon danger" (click)="removeEditItem(ed.items, i, n.title)">x</button>
                 </div>
                 @for (c of n.children || []; track $index; let j = $index) {
                   <div class="erow sub">
@@ -62,7 +62,7 @@ import { TaskStore } from './task-store';
                     <input [value]="c.title" (input)="c.title = $any($event.target).value" />
                     <button class="icon" [disabled]="j === 0" (click)="move(n.children!, j, -1)">^</button>
                     <button class="icon" [disabled]="j === n.children!.length - 1" (click)="move(n.children!, j, 1)">v</button>
-                    <button class="icon danger" (click)="n.children!.splice(j, 1)">x</button>
+                    <button class="icon danger" (click)="removeEditItem(n.children!, j, c.title)">x</button>
                   </div>
                 }
               }
@@ -200,6 +200,12 @@ export class LibraryPanel {
     if (!v) return;
     items.push({ title: v, children: [] });
     input.value = '';
+  }
+
+  async removeEditItem(arr: LibraryNode[], i: number, title: string) {
+    if (await this.popup.confirm(`Delete "${title || 'item'}"?`, 'delete item')) {
+      arr.splice(i, 1);
+    }
   }
 
   async saveEdit(id: string) {

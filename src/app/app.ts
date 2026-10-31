@@ -86,6 +86,26 @@ export class App {
     }
   }
 
+  async removeStatus(id: string, name: string) {
+    if (await this.popup.confirm(`Delete status "${name}"?`, 'delete status')) {
+      this.store.removeStatus(id);
+    }
+  }
+
+  saveDue(id: string, dueAt: string) {
+    this.store.updateTask(id, { dueAt: dueAt || null });
+  }
+
+  async clearDue(id: string) {
+    if (await this.popup.confirm('Delete deadline from this task?', 'delete deadline')) {
+      this.store.updateTask(id, { dueAt: null });
+    }
+  }
+
+  formatDue(iso: string): string {
+    return iso.replace('T', ' ').slice(0, 16);
+  }
+
   async saveToLibrary(id: string) {
     try {
       await this.store.saveTaskToLibrary(id, 'book');

@@ -1,5 +1,6 @@
 import { Component, inject, input, signal } from '@angular/core';
 import { Task } from './models';
+import { PopupService } from './popup';
 import { TaskStore } from './task-store';
 import { Progress } from './progress';
 
@@ -55,7 +56,7 @@ import { Progress } from './progress';
         </select>
         @if (!editing()) { <button class="icon" (click)="editing.set(true)">edit</button> }
         <button class="icon" (click)="adding.set(!adding())">+sub</button>
-        <button class="icon danger" (click)="store.removeTask(task().id)" title="move to trash">x</button>
+        <button class="icon danger" (click)="remove()" title="move to trash">x</button>
       </div>
     </div>
 
@@ -117,6 +118,7 @@ import { Progress } from './progress';
 export class TaskItem {
   readonly task = input.required<Task>();
   readonly store = inject(TaskStore);
+  private popup = inject(PopupService);
   readonly editing = signal(false);
   readonly adding = signal(false);
   readonly dropZone = signal<'before' | 'after' | 'inside' | null>(null);
@@ -148,6 +150,15 @@ export class TaskItem {
   addChild(title: string, dueAt: string) {
     this.store.addTask(this.task().id, title, 'task', dueAt || null);
     this.adding.set(false);
+  }
+  async remove() {
+    const t = this.task();
+    const msg = t.children.length
+      ? `Delete "${t.title}" and its subtasks?`
+      : `Delete "${t.title}"?`;
+    if (await this.popup.confirm(msg, 'delete task')) {
+      this.store.removeTask(t.id);
+    }
   }
 
   onDragStart(e: DragEvent) {

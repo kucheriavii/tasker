@@ -31,7 +31,7 @@
           <label><input type="checkbox" [checked]="s.active" (change)="store.updateStatus(s.id, { active: $any($event.target).checked })" /> active</label>
           <button class="icon" [disabled]="i === 0" (click)="store.moveStatus(s.id, -1)">^</button>
           <button class="icon" [disabled]="i === store.statuses().length - 1" (click)="store.moveStatus(s.id, 1)">v</button>
-          <button class="icon danger" [disabled]="store.statuses().length <= 1" (click)="store.removeStatus(s.id)">x</button>
+          <button class="icon danger" [disabled]="store.statuses().length <= 1" (click)="removeStatus(s.id, s.name)">x</button>
         </div>
       }
       <form class="add" (submit)="$event.preventDefault(); store.addStatus(st.value); st.value = ''">
@@ -99,10 +99,11 @@
 
       <h2># deadline</h2>
       <div class="srow">
-        <input type="datetime-local" [value]="t.dueAt || ''"
-          (change)="store.updateTask(t.id, { dueAt: $any($event.target).value || null })" />
+        <input #dueIn type="datetime-local" [value]="t.dueAt || ''" (keydown.enter)="saveDue(t.id, dueIn.value)" />
+        <button class="ok" (click)="saveDue(t.id, dueIn.value)">ok</button>
         @if (t.dueAt) {
-          <button (click)="store.updateTask(t.id, { dueAt: null })">[clear]</button>
+          <button class="danger" (click)="clearDue(t.id)">clear</button>
+          <span class="hint">set: {{ formatDue(t.dueAt) }}</span>
           @if (store.isOverdue(t)) {
             <span class="err">! overdue</span>
           }

@@ -19,7 +19,32 @@ button.danger:hover:not(:disabled) { color: var(--danger); }
 .srow { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
 .srow input:not([type='checkbox']) { flex: 1; }
 
-.tree { margin-top: 12px; }
+.tree {
+  margin-top: 12px;
+  background: #f2f2ec;
+  border: 1px solid var(--line);
+  padding: 10px 12px 12px;
+}
+.tree-head {
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.tree > app-task-item {
+  display: block;
+  background: #fff;
+  border: 1px solid var(--line);
+  padding: 2px 10px;
+  margin-bottom: 8px;
+}
+.tree > app-task-item:last-child {
+  margin-bottom: 0;
+}
 
 .crumbs { margin-bottom: 8px; color: var(--muted); }
 .crumbs button { padding: 0 4px; color: var(--accent); }

@@ -78,9 +78,10 @@ import { Progress } from './progress';
     }
   `,
   styles: `
-    .row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 0;
+    .row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 4px;
       border-bottom: 1px dashed var(--line); cursor: pointer; }
-    .row:hover { background: #fff; }
+    .row.root { border-bottom-style: solid; background: #fff; }
+    .row:hover { background: #f6f8fa; }
     .row.root .title { font-weight: 700; }
     .grip { color: var(--muted); cursor: grab; user-select: none; font-size: 12px; padding: 0 2px; }
     .grip:active { cursor: grabbing; }
@@ -102,7 +103,7 @@ import { Progress } from './progress';
     .ok { border-color: var(--accent); color: var(--accent); background: #fff; }
     .icon.danger:hover { color: var(--danger); }
     select { max-width: 130px; }
-    .children { margin-left: 10px; padding-left: 8px; border-left: 1px solid var(--line); }
+    .children { margin: 4px 0 6px 10px; padding: 2px 6px 2px 10px; border-left: 2px solid var(--line); background: #fafaf7; }
     .indent { margin-left: 30px; }
     .add input { width: 100%; }
     .addrow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }

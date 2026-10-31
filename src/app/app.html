@@ -175,6 +175,7 @@
     }
 
     <section class="tree">
+      <div class="tree-head"># {{ tab() === 'book' ? 'books &amp; long-term plans' : 'tasks' }}</div>
       @for (task of activeList(); track task.id) {
         <app-task-item [task]="task" />
       } @empty {

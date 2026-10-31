@@ -160,7 +160,7 @@ button.ok { border-color: var(--accent); color: var(--accent); background: #fff;
 /* ===== Mobile layout ===== */
 @media (max-width: 640px) {
   main {
-    padding: 0 10px calc(64px + env(safe-area-inset-bottom, 0px));
+    padding: 0 8px calc(48px + env(safe-area-inset-bottom, 0px));
   }
   header {
     position: sticky;
@@ -168,8 +168,8 @@ button.ok { border-color: var(--accent); color: var(--accent); background: #fff;
     z-index: 50;
     background: rgba(250, 250, 247, 0.98);
     backdrop-filter: blur(8px);
-    margin: 0 -10px 12px;
-    padding: 10px 12px;
+    margin: 0 -8px 8px;
+    padding: 6px 8px;
     border-bottom: 1px solid var(--line);
     display: flex;
     justify-content: space-between;
@@ -178,10 +178,10 @@ button.ok { border-color: var(--accent); color: var(--accent); background: #fff;
   .brand {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
   }
   .brand h1 {
-    font-size: 19px;
+    font-size: 17px;
     margin: 0;
   }
   .brand-tab {
@@ -194,10 +194,11 @@ button.ok { border-color: var(--accent); color: var(--accent); background: #fff;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 6px 12px;
-    font-size: 13px;
+    padding: 2px 8px;
+    font-size: 12px;
     font-weight: 700;
-    min-height: 36px;
+    min-height: 28px;
+    height: 28px;
     background: #fff;
     border: 1px solid var(--line);
     cursor: pointer;
@@ -224,29 +225,29 @@ button.ok { border-color: var(--accent); color: var(--accent); background: #fff;
     display: flex;
     flex-direction: column;
     position: fixed;
-    top: 56px;
-    left: 10px;
-    right: 10px;
-    max-height: calc(100vh - 72px);
+    top: 44px;
+    left: 6px;
+    right: 6px;
+    max-height: calc(100vh - 56px);
     overflow-y: auto;
     background: #fff;
     border: 1px solid var(--line);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
     z-index: 70;
-    padding: 12px;
-    gap: 12px;
+    padding: 8px;
+    gap: 8px;
   }
   .mobile-nav-section {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
   }
   .mobile-nav-label {
-    font-size: 11px;
+    font-size: 10px;
     color: var(--muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    padding: 2px 4px;
+    padding: 1px 3px;
     font-weight: 600;
   }
   .mobile-nav-item {
@@ -254,12 +255,13 @@ button.ok { border-color: var(--accent); color: var(--accent); background: #fff;
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    min-height: 44px;
-    padding: 10px 12px;
+    min-height: 32px;
+    height: 32px;
+    padding: 4px 8px;
     background: #fafaf7;
     border: 1px solid var(--line);
     text-align: left;
-    font-size: 13px;
+    font-size: 12px;
     cursor: pointer;
   }
   .mobile-nav-item:active {
@@ -275,8 +277,8 @@ button.ok { border-color: var(--accent); color: var(--accent); background: #fff;
     font-weight: 600;
   }
   .mobile-nav-item .m-badge {
-    font-size: 11px;
-    padding: 2px 6px;
+    font-size: 10px;
+    padding: 1px 5px;
     border: 1px solid var(--line);
     background: #fff;
     color: var(--muted);
@@ -287,84 +289,110 @@ button.ok { border-color: var(--accent); color: var(--accent); background: #fff;
     color: var(--accent);
   }
   .mobile-nav-item .m-hint {
-    font-size: 11px;
+    font-size: 10px;
     color: var(--muted);
   }
 
   .new-row {
     display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    padding: 10px;
-    gap: 8px;
+    flex-wrap: wrap;
+    padding: 6px 8px;
+    gap: 5px;
     background: #fff;
     border: 1px solid var(--line);
-    margin: 8px 0 12px;
+    margin: 6px 0 8px;
   }
   .new-row .grow {
-    width: 100%;
-    min-height: 38px;
-    padding: 8px 10px;
-    font-size: 14px;
+    flex: 1 1 100%;
+    min-height: 28px;
+    height: 28px;
+    padding: 2px 6px;
+    font-size: 13px;
   }
   .new-row .due-pick {
-    width: 100%;
+    flex: 1 1 140px;
     max-width: none;
-    min-height: 38px;
-    padding: 6px 10px;
-    font-size: 13px;
+    min-height: 26px;
+    height: 26px;
+    padding: 2px 4px;
+    font-size: 11px;
   }
   .new-row button[type='submit'] {
-    width: 100%;
-    min-height: 38px;
-    font-size: 13px;
+    flex: 0 0 54px;
+    min-height: 26px;
+    height: 26px;
+    font-size: 11px;
     font-weight: 600;
   }
 
+  .panel {
+    padding: 8px;
+    margin-bottom: 8px;
+  }
+  .srow {
+    gap: 4px;
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+  .srow input {
+    min-height: 26px;
+    height: 26px;
+    padding: 2px 4px;
+    font-size: 12px;
+  }
+  .srow button {
+    min-height: 26px;
+    height: 26px;
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+
   .tree {
-    padding: 10px;
+    padding: 6px 8px;
   }
   .tree > app-task-item {
     padding: 0;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
   }
 
   .detail {
-    padding: 12px;
+    padding: 8px;
   }
   .drow {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
+    gap: 5px;
   }
   .drow-main {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     width: 100%;
   }
   .drow-main .big {
     flex: 1;
-    font-size: 17px;
+    font-size: 16px;
     margin: 0;
     word-break: break-word;
   }
   .drow-main button {
-    min-height: 34px;
-    padding: 4px 10px;
+    min-height: 26px;
+    height: 26px;
+    padding: 2px 6px;
+    font-size: 11px;
   }
   .drow-actions {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    gap: 5px;
     width: 100%;
   }
   .drow-actions button {
-    flex: 1 1 140px;
-    min-height: 36px;
-    padding: 6px 8px;
-    font-size: 12px;
+    flex: 1;
+    min-height: 26px;
+    height: 26px;
+    padding: 2px 4px;
+    font-size: 11px;
   }
   .drow-status {
     width: 100%;
@@ -372,32 +400,38 @@ button.ok { border-color: var(--accent); color: var(--accent); background: #fff;
   .drow-status select {
     width: 100%;
     max-width: none;
-    min-height: 36px;
-    font-size: 13px;
-    padding: 6px 10px;
+    min-height: 26px;
+    height: 26px;
+    font-size: 11px;
+    padding: 2px 4px;
     background: #fff;
     border: 1px solid var(--line);
   }
   .deadline-row {
     display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
   }
   .deadline-row input[type='datetime-local'] {
-    width: 100%;
-    min-height: 36px;
-    font-size: 13px;
+    flex: 1 1 140px;
+    width: auto;
+    min-height: 26px;
+    height: 26px;
+    font-size: 11px;
+    padding: 2px 4px;
   }
   .srow-btns {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-    width: 100%;
+    display: inline-flex;
+    gap: 4px;
+    flex: 0 0 auto;
   }
   .srow-btns button {
-    width: 100%;
-    min-height: 34px;
+    width: auto;
+    min-height: 26px;
+    height: 26px;
+    padding: 2px 6px;
+    font-size: 11px;
   }
   .imgs figure {
     flex: 1 1 calc(50% - 4px);
@@ -405,6 +439,6 @@ button.ok { border-color: var(--accent); color: var(--accent); background: #fff;
   .imgs img {
     width: 100%;
     max-width: 100%;
-    height: 130px;
+    height: 90px;
   }
 }

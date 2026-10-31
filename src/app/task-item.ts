@@ -159,9 +159,9 @@ import { Progress } from './progress';
       .row {
         flex-direction: column;
         align-items: stretch;
-        gap: 8px;
-        padding: 10px;
-        margin-bottom: 8px;
+        gap: 4px;
+        padding: 6px 8px;
+        margin-bottom: 5px;
         background: #fff;
         border: 1px solid var(--line);
       }
@@ -170,82 +170,88 @@ import { Progress } from './progress';
         flex-direction: column;
         align-items: stretch;
         width: 100%;
-        gap: 6px;
+        gap: 3px;
       }
       .task-head {
         display: flex;
-        align-items: flex-start;
-        gap: 8px;
+        align-items: center;
+        gap: 6px;
         width: 100%;
       }
       .toggle-btn {
-        min-height: 28px;
-        min-width: 28px;
-        padding: 2px 6px;
+        min-height: 22px;
+        min-width: 22px;
+        padding: 0 4px;
+        font-size: 12px;
       }
       .dot {
-        line-height: 26px;
+        line-height: 20px;
+        width: 14px;
+        font-size: 14px;
       }
       .title {
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 600;
+        line-height: 1.35;
       }
       .badges {
         display: flex;
         flex-wrap: wrap;
-        gap: 6px;
+        gap: 4px;
         width: 100%;
-        padding-left: 36px;
+        padding-left: 28px;
       }
       .due-badge, .badge {
-        font-size: 11px;
-        padding: 2px 6px;
+        font-size: 10px;
+        padding: 1px 4px;
         background: #f6f8fa;
         border: 1px solid var(--line);
       }
       .meta {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 8px;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 5px;
         width: 100%;
         margin-left: 0;
-        padding-top: 8px;
+        padding-top: 4px;
         border-top: 1px dashed var(--line);
       }
       .meta-progress {
-        display: flex;
-        width: 100%;
-        background: #fafaf7;
-        padding: 6px 8px;
-        border: 1px solid var(--line);
-      }
-      .meta-progress app-progress {
-        width: 100%;
+        display: inline-flex;
+        align-items: center;
+        flex: 0 0 auto;
+        background: transparent;
+        padding: 0;
+        border: none;
       }
       .meta-status {
-        width: 100%;
+        flex: 1 1 auto;
+        min-width: 0;
       }
       .meta-status select {
         width: 100%;
-        max-width: none;
-        min-height: 36px;
-        padding: 6px 10px;
-        font-size: 13px;
+        max-width: 100%;
+        min-height: 26px;
+        height: 26px;
+        padding: 2px 4px;
+        font-size: 11px;
         background: #fff;
         border: 1px solid var(--line);
       }
       .row-btns {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 6px;
-        width: 100%;
+        display: inline-flex;
+        gap: 3px;
+        flex: 0 0 auto;
       }
       .row-btns button {
-        min-height: 36px;
-        width: 100%;
-        padding: 6px 4px;
-        font-size: 12px;
-        font-weight: 600;
+        min-height: 26px;
+        height: 26px;
+        width: auto;
+        min-width: 26px;
+        padding: 2px 6px;
+        font-size: 11px;
+        font-weight: 500;
         text-align: center;
         background: #fff;
         border: 1px solid var(--line);
@@ -253,58 +259,65 @@ import { Progress } from './progress';
       .edit-box {
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 4px;
         width: 100%;
       }
       .title-edit {
         width: 100%;
-        min-height: 36px;
-        font-size: 14px;
+        min-height: 28px;
+        height: 28px;
+        padding: 2px 6px;
+        font-size: 13px;
       }
       .edit-tools {
         display: flex;
-        flex-direction: column;
-        gap: 6px;
+        gap: 4px;
+        align-items: center;
         width: 100%;
       }
       .edit-tools .due-in {
-        width: 100%;
-        max-width: none;
-        min-height: 36px;
-        font-size: 13px;
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 26px;
+        height: 26px;
+        font-size: 11px;
+        padding: 2px 4px;
       }
       .edit-btns {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 6px;
-        width: 100%;
+        display: inline-flex;
+        gap: 4px;
+        flex: 0 0 auto;
       }
       .edit-btns button {
-        min-height: 36px;
-        font-size: 13px;
+        min-height: 26px;
+        height: 26px;
+        font-size: 11px;
+        padding: 2px 8px;
       }
       .addrow {
         display: flex;
         flex-direction: column;
-        gap: 8px;
-        padding: 8px;
-        margin: 6px 0 8px;
+        gap: 4px;
+        padding: 6px;
+        margin: 4px 0 6px;
         background: #fff;
         border: 1px solid var(--line);
       }
       .sub-title {
         width: 100%;
-        min-height: 36px;
-        font-size: 14px;
+        min-height: 28px;
+        height: 28px;
+        padding: 2px 6px;
+        font-size: 13px;
       }
       .children {
-        margin: 6px 0 8px 8px;
-        padding: 4px 0 4px 8px;
+        margin: 4px 0 5px 6px;
+        padding: 2px 0 2px 6px;
         border-left: 2px solid var(--line);
         background: transparent;
       }
       .indent {
-        margin-left: 8px;
+        margin-left: 6px;
       }
     }
   `,

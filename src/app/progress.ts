@@ -13,9 +13,9 @@ import { Component, computed, input } from '@angular/core';
     .bar i { display: block; height: 100%; background: var(--accent); }
     .pct { font-size: 11px; color: var(--muted); min-width: 32px; text-align: right; }
     @media (max-width: 640px) {
-      :host { gap: 8px; width: 100%; }
-      .bar { flex: 1; width: auto; height: 9px; }
-      .pct { min-width: 38px; font-weight: 600; font-size: 12px; }
+      :host { gap: 4px; }
+      .bar { width: 42px; height: 6px; }
+      .pct { min-width: 26px; font-size: 10px; font-weight: 600; }
     }
   `,
 })

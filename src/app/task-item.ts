@@ -12,6 +12,7 @@ import { Progress } from './progress';
       [class.root]="task().parentId === null"
       [class.done]="store.isDone(task().statusId)"
       [class.cancelled]="store.isCancelled(task().statusId)"
+      [class.overdue]="store.isOverdue(task())"
       [class.drop-before]="dropZone() === 'before'"
       [class.drop-after]="dropZone() === 'after'"
       [class.drop-inside]="dropZone() === 'inside'"
@@ -29,10 +30,17 @@ import { Progress } from './progress';
 
         @if (editing()) {
           <input #ed class="title-edit" [value]="task().title" autofocus
-            (keydown.enter)="save(ed.value)" (keydown.escape)="editing.set(false)" />
-          <button class="ok" (click)="save(ed.value)">ok</button>
+            (keydown.enter)="save(ed.value, dueEd.value)" (keydown.escape)="editing.set(false)" />
+          <input #dueEd type="datetime-local" class="due-in" [value]="task().dueAt || ''" title="deadline" />
+          <button class="ok" (click)="save(ed.value, dueEd.value)">ok</button>
+          <button (click)="editing.set(false)">cancel</button>
         } @else {
           <span class="title">{{ task().title }}</span>
+          @if (task().dueAt) {
+            <span class="due-badge" [class.overdue]="store.isOverdue(task())" [title]="'due: ' + formatDue(task().dueAt!)">
+              {{ store.isOverdue(task()) ? '! ' : '' }}{{ formatDue(task().dueAt!) }}
+            </span>
+          }
           @if (task().description) { <span class="badge" title="has description">=</span> }
           @if (task().imageIds.length) { <span class="badge" title="images">img:{{ task().imageIds.length }}</span> }
         }
@@ -52,8 +60,9 @@ import { Progress } from './progress';
     </div>
 
     @if (adding()) {
-      <form class="add indent addrow" (submit)="$event.preventDefault(); addChild(inp.value); inp.value = ''">
+      <form class="add indent addrow" (submit)="$event.preventDefault(); addChild(inp.value, subDue.value); inp.value = ''; subDue.value = ''">
         <input #inp placeholder="subtask..." autofocus (keydown.escape)="adding.set(false)" />
+        <input #subDue type="datetime-local" class="due-in" title="optional deadline" />
         <button type="submit" class="ok">add</button>
         <button type="button" (click)="adding.set(false)">cancel</button>
       </form>
@@ -77,10 +86,13 @@ import { Progress } from './progress';
     .row.drop-before { border-top: 2px solid var(--accent); }
     .row.drop-after { border-bottom: 2px solid var(--accent); }
     .row.drop-inside { outline: 2px dashed var(--accent); background: #eef6ff; }
-    .main { display: flex; align-items: center; gap: 6px; flex: 1 1 220px; min-width: 0; }
+    .main { display: flex; align-items: center; gap: 6px; flex: 1 1 220px; min-width: 0; flex-wrap: wrap; }
     .meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-left: auto; }
     .title { flex: 1; word-break: break-word; }
-    .title-edit { flex: 1; min-width: 0; }
+    .title-edit { flex: 1; min-width: 120px; }
+    .due-in { font-size: 12px; max-width: 175px; }
+    .due-badge { font-size: 11px; color: var(--muted); border: 1px solid var(--line); padding: 1px 5px; background: #fff; white-space: nowrap; }
+    .due-badge.overdue { color: var(--danger); border-color: var(--danger); font-weight: bold; }
     .row.done .title { text-decoration: line-through; color: var(--muted); }
     .row.cancelled .title { text-decoration: line-through; color: var(--muted); font-style: italic; }
     .row.cancelled { opacity: 0.6; }
@@ -92,8 +104,8 @@ import { Progress } from './progress';
     .children { margin-left: 10px; padding-left: 8px; border-left: 1px solid var(--line); }
     .indent { margin-left: 30px; }
     .add input { width: 100%; }
-    .addrow { display: flex; gap: 6px; align-items: center; }
-    .addrow input { flex: 1; min-width: 0; }
+    .addrow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .addrow input:not(.due-in) { flex: 1; min-width: 140px; }
 
     @media (max-width: 640px) {
       .meta { width: 100%; margin-left: 30px; }
@@ -109,6 +121,10 @@ export class TaskItem {
   readonly adding = signal(false);
   readonly dropZone = signal<'before' | 'after' | 'inside' | null>(null);
 
+  formatDue(iso: string): string {
+    return iso.replace('T', ' ').slice(0, 16);
+  }
+
   /** Tapping the container opens the task, unless an interactive control was hit. */
   onRowClick(e: MouseEvent) {
     if ((e.target as HTMLElement).closest('button,select,input,form,app-progress a,.grip')) return;
@@ -120,13 +136,17 @@ export class TaskItem {
   setStatus(statusId: string) {
     this.store.updateTask(this.task().id, { statusId });
   }
-  save(title: string) {
+  save(title: string, dueAt: string) {
     title = title.trim();
-    if (title && title !== this.task().title) this.store.updateTask(this.task().id, { title });
+    const patch: Partial<Task> = {};
+    if (title && title !== this.task().title) patch.title = title;
+    const cleanDue = dueAt ? dueAt : null;
+    if (cleanDue !== (this.task().dueAt ?? null)) patch.dueAt = cleanDue;
+    if (Object.keys(patch).length) this.store.updateTask(this.task().id, patch);
     this.editing.set(false);
   }
-  addChild(title: string) {
-    this.store.addTask(this.task().id, title);
+  addChild(title: string, dueAt: string) {
+    this.store.addTask(this.task().id, title, 'task', dueAt || null);
     this.adding.set(false);
   }
 

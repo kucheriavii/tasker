@@ -1,8 +1,9 @@
 import { Component, computed, inject, output, signal } from '@angular/core';
 import { LibraryItem, LibraryNode } from './models';
+import { PopupService } from './popup';
 import { TaskStore } from './task-store';
 
-/** Shared repository of books, YouTube playlists, and courses (no duplicates, editable items). */
+/** Shared repository of books, YouTube playlists, and courses (no duplicates, Admin-only edit/delete). */
 @Component({
   selector: 'app-library',
   template: `
@@ -11,7 +12,14 @@ import { TaskStore } from './task-store';
         <h2># library (shared books / playlists / courses)</h2>
         <button (click)="closed.emit()">[close]</button>
       </div>
-      <p class="hint">shared catalog of books, playlists and courses. edit items here or clone them into your tasks.</p>
+      <p class="hint">
+        shared catalog of books, playlists and courses.
+        @if (store.isAdmin()) {
+          you are <strong>admin</strong>: you can edit or delete items here, or add new ones via [import].
+        } @else {
+          you are in <strong>user</strong> mode: pick any item to clone into your [books] tab.
+        }
+      </p>
 
       @if (error()) { <p class="err">! {{ error() }}</p> }
 
@@ -24,7 +32,7 @@ import { TaskStore } from './task-store';
 
       @for (item of filtered(); track item.id) {
         <div class="card">
-          @if (editingId() === item.id && editCopy(); as ed) {
+          @if (store.isAdmin() && editingId() === item.id && editCopy(); as ed) {
             <div class="crow">
               <select [value]="ed.kind" (change)="ed.kind = $any($event.target).value">
                 <option value="book">book</option>
@@ -72,9 +80,13 @@ import { TaskStore } from './task-store';
                 <a class="link" [href]="item.sourceUrl" target="_blank" rel="noopener">link</a>
               }
               <button (click)="togglePreview(item.id)">{{ expandedId() === item.id ? 'hide' : 'preview' }}</button>
-              <button (click)="startEdit(item)">edit</button>
-              <button class="ok" (click)="cloneItem(item.id)">+ to my tasks</button>
-              <button class="danger" (click)="removeItem(item.id)" title="delete from library">x</button>
+              @if (store.isAdmin()) {
+                <button (click)="startEdit(item)">edit</button>
+              }
+              <button class="ok" (click)="cloneItem(item.id)">+ to my books</button>
+              @if (store.isAdmin()) {
+                <button class="danger" (click)="removeItem(item.id)" title="delete from library">x</button>
+              }
             </div>
             @if (item.description) {
               <p class="desc">{{ item.description }}</p>
@@ -96,7 +108,7 @@ import { TaskStore } from './task-store';
           }
         </div>
       } @empty {
-        <p class="hint">library is empty. use [import] to add books, playlists, or AI-generated study plans.</p>
+        <p class="hint">library is empty.</p>
       }
     </section>
   `,
@@ -128,6 +140,7 @@ import { TaskStore } from './task-store';
 })
 export class LibraryPanel {
   readonly store = inject(TaskStore);
+  private popup = inject(PopupService);
   readonly closed = output<void>();
 
   readonly kinds: ('all' | LibraryItem['kind'])[] = ['all', 'book', 'playlist', 'course', 'other'];
@@ -207,8 +220,8 @@ export class LibraryPanel {
     this.closed.emit();
   }
 
-  removeItem(libId: string) {
-    if (window.confirm('Delete this template from the shared library?')) {
+  async removeItem(libId: string) {
+    if (await this.popup.confirm('Delete this template from the shared library?', 'delete library item')) {
       this.store.deleteLibraryItem(libId);
     }
   }

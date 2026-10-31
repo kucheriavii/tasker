@@ -88,10 +88,10 @@ function getData() {
   const byTask = new Map();
   for (const i of imgs) (byTask.get(i.task_id) ?? byTask.set(i.task_id, []).get(i.task_id)).push(i.id);
   const tasks = q(
-    'SELECT id,parent_id,title,description,status_id,collapsed,deleted_at FROM tasks ORDER BY pos',
+    'SELECT id,parent_id,title,description,status_id,collapsed,deleted_at,kind,due_at FROM tasks ORDER BY pos',
   ).all().map((t) => ({
     id: t.id, parentId: t.parent_id, title: t.title, description: t.description,
-    statusId: t.status_id, collapsed: !!t.collapsed, deletedAt: t.deleted_at,
+    statusId: t.status_id, collapsed: !!t.collapsed, deletedAt: t.deleted_at, kind: t.kind === 'book' ? 'book' : 'task', dueAt: t.due_at || null,
     imageIds: byTask.get(t.id) ?? [],
   }));
   return { statuses, tasks };
@@ -136,14 +136,15 @@ route('GET', '/api/data', (_r, res) => send(res, 200, getData()));
 
 // ---- tasks ----
 route('POST', '/api/tasks', async (req, res) => {
-  const { parentId = null, title = '' } = await readJson(req);
+  const { parentId = null, title = '', kind = 'task', dueAt = null } = await readJson(req);
+  const k = parentId ? 'task' : (kind === 'book' ? 'book' : 'task');
   if (!title.trim()) return send(res, 400, { error: 'title required' });
   const st = q('SELECT id FROM statuses ORDER BY pos LIMIT 1').get();
   const id = randomUUID();
   if (parentId) q('UPDATE tasks SET collapsed=0 WHERE id=?').run(parentId);
-  q('INSERT INTO tasks (id,parent_id,title,status_id,pos) VALUES (?,?,?,?,?)').run(
+  q('INSERT INTO tasks (id,parent_id,title,status_id,pos,kind,due_at) VALUES (?,?,?,?,?,?,?)').run(
     id, parentId, title.trim(), st.id,
-    parentId ? nextPos('tasks', 'parent_id=?', parentId) : nextPos('tasks', 'parent_id IS NULL'));
+    parentId ? nextPos('tasks', 'parent_id=?', parentId) : nextPos('tasks', 'parent_id IS NULL AND kind=?', k), k, dueAt || null);
   send(res, 201, { id });
 });
 
@@ -205,7 +206,7 @@ route('POST', '/api/tasks/:id/set-subtasks', async (req, res, { id }) => {
 });
 route('PATCH', '/api/tasks/:id', async (req, res, { id }) => {
   const b = await readJson(req);
-  const map = { title: 'title', description: 'description', statusId: 'status_id', collapsed: 'collapsed' };
+  const map = { title: 'title', description: 'description', statusId: 'status_id', collapsed: 'collapsed', kind: 'kind', dueAt: 'due_at' };
   const sets = []; const vals = [];
   for (const [k, col] of Object.entries(map)) if (k in b) {
     sets.push(`${col}=?`); vals.push(k === 'collapsed' ? (b[k] ? 1 : 0) : b[k]);

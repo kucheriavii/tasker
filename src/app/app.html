@@ -1,7 +1,12 @@
 <main>
   <header>
-    <h1 (click)="store.openId.set(null)" style="cursor:pointer">&gt; tasker<span class="cursor">_</span></h1>
+    <div class="brand">
+      <h1 (click)="store.openId.set(null)" style="cursor:pointer">&gt; tasker<span class="cursor">_</span></h1>
+      <button [class.ok]="tab() === 'task' && !store.open()" (click)="switchTab('task')" title="short-term tasks">[tasks:{{ store.tree().length }}]</button>
+      <button [class.ok]="tab() === 'book' && !store.open()" (click)="switchTab('book')" title="long-term books, playlists & courses">[books:{{ store.books().length }}]</button>
+    </div>
     <div class="nav-btns">
+      <button [class.ok]="store.isAdmin()" (click)="toggleRole()" title="switch role (user / admin)">[role:{{ store.role() }}]</button>
       <button [class.ok]="panel() === 'import'" (click)="toggle('import')">[import]</button>
       <button [class.ok]="panel() === 'library'" (click)="toggle('library')">[library{{ store.library().length ? ':' + store.library().length : '' }}]</button>
       <button [class.ok]="panel() === 'trash'" (click)="toggle('trash')">[trash{{ store.trash().length ? ':' + store.trash().length : '' }}]</button>
@@ -42,13 +47,13 @@
         <div class="srow">
           <span class="grow">{{ t.title }} <span class="hint">{{ t.deletedAt }}</span></span>
           <button (click)="store.restoreTask(t.id)">restore</button>
-          <button class="danger" (click)="confirm('Delete forever?') && store.purgeTask(t.id)">purge</button>
+          <button class="danger" (click)="purgeFromTrash(t.id)">purge</button>
         </div>
       } @empty {
         <p class="hint">trash is empty.</p>
       }
       @if (store.trash().length) {
-        <button class="danger" (click)="confirm('Empty trash? This cannot be undone.') && store.emptyTrash()">[empty trash]</button>
+        <button class="danger" (click)="emptyTrash()">[empty trash]</button>
       }
     </section>
   }
@@ -56,7 +61,7 @@
   @if (store.open(); as t) {
     <!-- ===== task detail ===== -->
     <nav class="crumbs">
-      <button (click)="store.openId.set(null)">~</button>
+      <button (click)="store.openId.set(null)">~ {{ tab() === 'book' ? 'books' : 'tasks' }}</button>
       @for (b of store.breadcrumbs(); track b.id) {
         / <button (click)="store.openId.set(b.id)" [disabled]="b.id === t.id">{{ b.title }}</button>
       }
@@ -72,7 +77,14 @@
           <h1 class="big">{{ t.title }}</h1>
           <button (click)="editTitle.set(true)">edit</button>
         }
-        <button (click)="saveToLibrary(t.id)" title="save this task tree as a template in the shared library">[-> library]</button>
+        @if (t.parentId === null) {
+          <button (click)="toggleKind(t.id, t.kind)" title="move between short-term [tasks] and long-term [books]">
+            [-&gt; {{ t.kind === 'book' ? 'tasks' : 'books' }}]
+          </button>
+        }
+        @if (store.isAdmin()) {
+          <button (click)="saveToLibrary(t.id)" title="save this task tree as a template in the shared library">[-&gt; library]</button>
+        }
         <select [value]="t.statusId" (change)="store.updateTask(t.id, { statusId: $any($event.target).value })">
           @for (s of store.statuses(); track s.id) {
             <option [value]="s.id" [selected]="s.id === t.statusId">{{ s.name }}</option>
@@ -83,6 +95,20 @@
       <div class="prog">
         <app-progress [value]="t.progress" [done]="t.leafDone" [total]="t.leafTotal" />
         <span class="hint">{{ t.leafDone }}/{{ t.leafTotal }} {{ t.children.length ? 'leaf tasks done' : 'this task' }}</span>
+      </div>
+
+      <h2># deadline</h2>
+      <div class="srow">
+        <input type="datetime-local" [value]="t.dueAt || ''"
+          (change)="store.updateTask(t.id, { dueAt: $any($event.target).value || null })" />
+        @if (t.dueAt) {
+          <button (click)="store.updateTask(t.id, { dueAt: null })">[clear]</button>
+          @if (store.isOverdue(t)) {
+            <span class="err">! overdue</span>
+          }
+        } @else {
+          <span class="hint">no deadline set</span>
+        }
       </div>
 
       <h2># description
@@ -100,7 +126,7 @@
         @for (id of t.imageIds; track id) {
           <figure>
             <a [href]="store.imageUrl(id)" target="_blank"><img [src]="store.imageUrl(id)" alt="" loading="lazy" /></a>
-            <button class="danger" (click)="confirm('Delete image?') && store.removeImage(id)">x</button>
+            <button class="danger" (click)="removeImage(id)">x</button>
           </figure>
         }
       </div>
@@ -125,13 +151,17 @@
       } @empty {
         <p class="hint">no subtasks.</p>
       }
-      <form class="add" (submit)="$event.preventDefault(); store.addTask(t.id, sub.value); sub.value = ''">
-        <input #sub placeholder="new subtask, press enter..." />
+      <form class="add new-row" (submit)="$event.preventDefault(); store.addTask(t.id, sub.value, 'task', subDue.value || null); sub.value = ''; subDue.value = ''">
+        <input #sub class="grow" placeholder="new subtask, press enter..." />
+        <input #subDue type="datetime-local" class="due-pick" title="optional deadline" />
+        <button type="submit" class="ok">add</button>
       </form>
     </section>
   } @else {
-    <form class="add" (submit)="$event.preventDefault(); store.addTask(null, t.value); t.value = ''">
-      <input #t placeholder="new task, press enter..." />
+    <form class="add new-row" (submit)="$event.preventDefault(); store.addTask(null, t.value, tab(), tDue.value || null); t.value = ''; tDue.value = ''">
+      <input #t class="grow" [placeholder]="tab() === 'book' ? 'new book / long-term goal, press enter...' : 'new short-term task, press enter...'" />
+      <input #tDue type="datetime-local" class="due-pick" title="optional deadline" />
+      <button type="submit" class="ok">add</button>
     </form>
 
     @if (store.draggedId()) {
@@ -139,16 +169,20 @@
         (dragover)="$event.preventDefault(); rootDrop.set(true)"
         (dragleave)="rootDrop.set(false)"
         (drop)="onRootDrop($event)">
-        drop here to move task to top (root) level
+        drop here to move item to top ({{ tab() === 'book' ? 'books' : 'tasks' }}) level
       </div>
     }
 
     <section class="tree">
-      @for (task of store.tree(); track task.id) {
+      @for (task of activeList(); track task.id) {
         <app-task-item [task]="task" />
       } @empty {
-        @if (store.loaded()) { <p class="hint">no tasks yet.</p> }
+        @if (store.loaded()) {
+          <p class="hint">{{ tab() === 'book' ? 'no books / long-term plans yet. use [library] or [import] to add one, or type above.' : 'no short-term tasks yet.' }}</p>
+        }
       }
     </section>
   }
+
+  <app-popup />
 </main>

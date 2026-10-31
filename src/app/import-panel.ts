@@ -13,8 +13,9 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
  * 1) [link / text / screenshot] — YouTube playlist, book/course URL, text TOC, or screenshot
  * 2) [+ ai task] — generate an ordered study/action task from scratch by topic
  * Once a task draft is generated in import:
- * - [+ to my tasks] -> creates task in personal list and deletes draft from import
- * - [-> to library] -> sends to shared library (no duplicate names) and deletes draft from import
+ * - [+ to books]    -> creates long-term item in [books] tab and deletes draft from import
+ * - [+ to tasks]    -> creates short-term item in [tasks] tab and deletes draft from import
+ * - [-> to library] -> (admin only) sends to shared library and deletes draft from import
  * - [delete task]   -> deletes draft from import directly without sending anywhere
  */
 @Component({
@@ -67,7 +68,7 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
       } @else {
         <div class="draft-box">
           <div class="draft-head">
-            <span class="hint">imported task draft ({{ count() }} subtasks) — edit, send to tasks/library, or delete:</span>
+            <span class="hint">imported task draft ({{ count() }} subtasks) — edit, send to books/tasks/library, or delete:</span>
             <button class="danger" [disabled]="busy()" (click)="discardDraft()">[delete task]</button>
           </div>
 
@@ -107,8 +108,11 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
           @if (error()) { <p class="err">! {{ error() }}</p> }
 
           <div class="actions">
-            <button class="ok" [disabled]="busy()" (click)="createInMyTasks()">+ to my tasks ({{ count() }})</button>
-            <button class="ok" [disabled]="busy()" (click)="sendToLibrary()">-&gt; to library</button>
+            <button class="ok" [disabled]="busy()" (click)="createIn('book')">+ to [books] ({{ count() }})</button>
+            <button class="ok" [disabled]="busy()" (click)="createIn('task')">+ to [tasks] ({{ count() }})</button>
+            @if (store.isAdmin()) {
+              <button class="ok" [disabled]="busy()" (click)="sendToLibrary()">-&gt; to library</button>
+            }
             <button class="danger" [disabled]="busy()" (click)="discardDraft()">delete task</button>
           </div>
         </div>
@@ -142,7 +146,7 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
 })
 export class ImportPanel {
   private http = inject(HttpClient);
-  private store = inject(TaskStore);
+  readonly store = inject(TaskStore);
   readonly closed = output<void>();
 
   readonly tab = signal<'source' | 'ai'>('source');
@@ -265,13 +269,13 @@ export class ImportPanel {
     this.busy.set(false);
   }
 
-  /** Creates the task in personal tasks and deletes it from [import] (without sending to library). */
-  async createInMyTasks() {
+  /** Creates the item in [tasks] or [books] and deletes it from [import]. */
+  async createIn(targetKind: 'task' | 'book') {
     const d = this.draft()!;
     this.error.set(null);
     this.busy.set(true);
     try {
-      const r = await firstValueFrom(this.http.post<{ id: string }>('/api/import/create', d));
+      const r = await firstValueFrom(this.http.post<{ id: string }>('/api/import/create', { ...d, targetKind }));
       await this.store.refresh();
       this.discardDraft();
       this.store.openId.set(r.id);

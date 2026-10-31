@@ -1,7 +1,8 @@
-// Drag & drop move, shared Library (books/playlists/courses repository), and AI Task Generator.
+// Drag & drop move, Admin auth, shared Library (books/playlists/courses), and AI Task Generator.
 import { randomUUID } from 'node:crypto';
 
 const fail = (msg, status = 400) => Object.assign(new Error(msg), { status });
+const adminPass = () => process.env.ADMIN_PASSWORD || 'admin';
 
 const AI_TASK_SCHEMA = {
   type: 'OBJECT',
@@ -69,7 +70,15 @@ async function generateAiTask({ topic, details }) {
 }
 
 export function migrateFeatures(db) {
+  const cols = db.prepare('PRAGMA table_info(tasks)').all().map((c) => c.name);
+  if (!cols.includes('kind')) {
+    db.exec("ALTER TABLE tasks ADD COLUMN kind TEXT NOT NULL DEFAULT 'task'");
+  }
+  if (!cols.includes('due_at')) {
+    db.exec('ALTER TABLE tasks ADD COLUMN due_at TEXT');
+  }
   db.exec(`
+    UPDATE tasks SET kind='task' WHERE kind NOT IN ('task', 'book');
     CREATE TABLE IF NOT EXISTS library_items (
       id TEXT PRIMARY KEY,
       kind TEXT NOT NULL DEFAULT 'book',
@@ -84,16 +93,26 @@ export function migrateFeatures(db) {
       SELECT MAX(rowid) FROM library_items GROUP BY lower(trim(title))
     );
   `);
-  if (db.prepare('PRAGMA table_info(tasks)').all().some((c) => c.name === 'kind')) {
-    db.exec("UPDATE tasks SET kind='task' WHERE kind<>'task'");
-  }
 }
 
 export function registerFeatures({ route, send, readJson, q, tx, nextPos, descendants }) {
+  const requireAdmin = (req) => {
+    if ((req.headers['x-admin-key'] || '') !== adminPass()) {
+      throw fail('Admin role required to add or edit library content.', 403);
+    }
+  };
+
+  // ---- Admin role check ----
+  route('POST', '/api/auth/admin', async (req, res) => {
+    const { password = '' } = await readJson(req);
+    if (password !== adminPass()) return send(res, 403, { error: 'Invalid admin password' });
+    send(res, 200, { ok: true });
+  });
+
   // ---- Drag & Drop move / reparent / reorder ----
   route('POST', '/api/tasks/:id/move', async (req, res, { id }) => {
-    const { targetId = null, mode = 'after' } = await readJson(req);
-    const task = q('SELECT id,parent_id FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
+    const { targetId = null, mode = 'after', rootKind = null } = await readJson(req);
+    const task = q('SELECT id,parent_id,kind FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
     if (!task) return send(res, 404, { error: 'task not found' });
     if (targetId === id) return send(res, 204);
 
@@ -109,21 +128,23 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
         if (!target) throw fail('target not found', 404);
         q('UPDATE tasks SET collapsed=0 WHERE id=?').run(targetId);
         const pos = nextPos('tasks', 'parent_id=?', targetId);
-        q('UPDATE tasks SET parent_id=?, pos=? WHERE id=?').run(targetId, pos, id);
+        q("UPDATE tasks SET parent_id=?, pos=?, kind='task' WHERE id=?").run(targetId, pos, id);
         return;
       }
 
       let newParentId = null;
+      let newKind = rootKind || task.kind || 'task';
       if (targetId) {
-        const target = q('SELECT id,parent_id FROM tasks WHERE id=? AND deleted_at IS NULL').get(targetId);
+        const target = q('SELECT id,parent_id,kind FROM tasks WHERE id=? AND deleted_at IS NULL').get(targetId);
         if (!target) throw fail('target not found', 404);
         newParentId = target.parent_id;
+        newKind = newParentId ? 'task' : (target.kind || 'task');
       }
 
       const siblings = (
         newParentId
           ? q('SELECT id FROM tasks WHERE parent_id=? AND deleted_at IS NULL AND id<>? ORDER BY pos').all(newParentId, id)
-          : q('SELECT id FROM tasks WHERE parent_id IS NULL AND deleted_at IS NULL AND id<>? ORDER BY pos').all(id)
+          : q('SELECT id FROM tasks WHERE parent_id IS NULL AND kind=? AND deleted_at IS NULL AND id<>? ORDER BY pos').all(newKind, id)
       ).map((r) => r.id);
 
       const idx = targetId ? siblings.indexOf(targetId) : -1;
@@ -133,7 +154,7 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
         siblings.splice(mode === 'before' ? idx : idx + 1, 0, id);
       }
 
-      q('UPDATE tasks SET parent_id=? WHERE id=?').run(newParentId, id);
+      q('UPDATE tasks SET parent_id=?, kind=? WHERE id=?').run(newParentId, newKind, id);
       const upd = q('UPDATE tasks SET pos=? WHERE id=?');
       siblings.forEach((sid, i) => upd.run(i, sid));
     });
@@ -141,7 +162,7 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
     send(res, 204);
   });
 
-  // ---- Shared Library (books, playlists, courses) — unique by title ----
+  // ---- Shared Library (books, playlists, courses) — unique by title, Admin-only writes ----
   const countNodes = (items) =>
     (items || []).reduce((n, it) => n + 1 + countNodes(it.children), 0);
 
@@ -172,6 +193,7 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
   });
 
   route('POST', '/api/library', async (req, res) => {
+    requireAdmin(req);
     const { kind = 'book', title = '', description = '', sourceUrl = '', items = [] } = await readJson(req);
     const cleanTitle = title.trim();
     if (!cleanTitle) return send(res, 400, { error: 'title required' });
@@ -186,6 +208,7 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
   });
 
   route('PATCH', '/api/library/:id', async (req, res, { id }) => {
+    requireAdmin(req);
     const existing = q('SELECT id,kind,title,description,source_url,tree_json FROM library_items WHERE id=?').get(id);
     if (!existing) return send(res, 404, { error: 'library item not found' });
     const b = await readJson(req);
@@ -204,6 +227,7 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
   });
 
   route('POST', '/api/library/from-task/:id', async (req, res, { id }) => {
+    requireAdmin(req);
     const { kind = 'book', sourceUrl = '' } = await readJson(req);
     const root = q('SELECT id,title,description FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
     if (!root) return send(res, 404, { error: 'task not found' });
@@ -227,17 +251,17 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
     if (!lib) return send(res, 404, { error: 'library item not found' });
     const items = JSON.parse(lib.tree_json || '[]');
     const st = q('SELECT id FROM statuses ORDER BY pos LIMIT 1').get();
-    const ins = q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos) VALUES (?,?,?,?,?,?)');
+    const ins = q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind) VALUES (?,?,?,?,?,?,?)');
     const rootId = tx(() => {
       const rid = randomUUID();
       const desc = [lib.description, lib.source_url ? `Source: ${lib.source_url}` : ''].filter(Boolean).join('\n');
-      ins.run(rid, null, lib.title, desc, st.id, nextPos('tasks', 'parent_id IS NULL'));
+      ins.run(rid, null, lib.title, desc, st.id, nextPos('tasks', "parent_id IS NULL AND kind='book'"), 'book');
       const add = (list, parent) =>
         (list || []).forEach((it, i) => {
           const t = String(it?.title ?? '').trim();
           if (!t) return;
           const cid = randomUUID();
-          ins.run(cid, parent, t, String(it?.description ?? '').trim(), st.id, i);
+          ins.run(cid, parent, t, String(it?.description ?? '').trim(), st.id, i, 'task');
           if (Array.isArray(it.children)) add(it.children, cid);
         });
       add(items, rid);
@@ -246,7 +270,8 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
     send(res, 201, { id: rootId });
   });
 
-  route('DELETE', '/api/library/:id', (_req, res, { id }) => {
+  route('DELETE', '/api/library/:id', (req, res, { id }) => {
+    requireAdmin(req);
     q('DELETE FROM library_items WHERE id=?').run(id);
     send(res, 204);
   });

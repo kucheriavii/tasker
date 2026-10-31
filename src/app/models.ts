@@ -18,6 +18,10 @@ export interface TaskRow {
   statusId: string;
   collapsed: boolean;
   deletedAt: string | null;
+  /** 'task' = short-term tasks tab; 'book' = long-term books/courses/playlists tab */
+  kind: 'task' | 'book';
+  /** Optional deadline (ISO datetime string YYYY-MM-DDTHH:mm) */
+  dueAt: string | null;
   imageIds: string[];
 }
 

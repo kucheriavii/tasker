@@ -3,6 +3,8 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { ApiData, LibraryItem, Status, Task, TaskRow } from './models';
 
+const ADMIN_KEY_STORAGE = 'tasker.adminKey';
+
 /**
  * Thin client over the SQLite-backed REST API (server/server.mjs).
  * Server is the source of truth; every mutation re-fetches the state.
@@ -20,12 +22,17 @@ export class TaskStore {
   /** Currently dragged task ID for Drag & Drop. */
   readonly draggedId = signal<string | null>(null);
 
+  /** User role: 'admin' can add/edit/delete in library; 'user' can only browse & clone. */
+  readonly adminKey = signal<string>(localStorage.getItem(ADMIN_KEY_STORAGE) || '');
+  readonly role = computed<'user' | 'admin'>(() => (this.adminKey() ? 'admin' : 'user'));
+  readonly isAdmin = computed(() => this.role() === 'admin');
+
   readonly statuses = computed(() => this.data().statuses);
   private doneIds = computed(() => new Set(this.statuses().filter((s) => s.done).map((s) => s.id)));
   private cancelledIds = computed(() => new Set(this.statuses().filter((s) => s.cancelled).map((s) => s.id)));
 
-  /** Forest of non-deleted tasks, with progress computed. */
-  readonly tree = computed<Task[]>(() => {
+  /** All non-deleted root trees. */
+  private readonly allRoots = computed<Task[]>(() => {
     const done = this.doneIds();
     const cancelled = this.cancelledIds();
     const rows = this.data().tasks.filter((t) => !t.deletedAt);
@@ -49,10 +56,18 @@ export class TaskStore {
     return (byParent.get(null) ?? []).map(build);
   });
 
+  /** Short-term tasks ([tasks] tab). */
+  readonly tree = computed<Task[]>(() =>
+    this.allRoots().filter((t) => (t.kind ?? 'task') !== 'book'));
+
+  /** Long-term books, playlists & courses ([books] tab). */
+  readonly books = computed<Task[]>(() =>
+    this.allRoots().filter((t) => t.kind === 'book'));
+
   private index = computed(() => {
     const m = new Map<string, Task>();
     const walk = (l: Task[]) => l.forEach((t) => { m.set(t.id, t); walk(t.children); });
-    walk(this.tree());
+    walk(this.allRoots());
     return m;
   });
 
@@ -82,6 +97,31 @@ export class TaskStore {
   isDone(statusId: string): boolean { return this.doneIds().has(statusId); }
   isCancelled(statusId: string): boolean { return this.cancelledIds().has(statusId); }
 
+  isOverdue(t: TaskRow): boolean {
+    if (!t.dueAt || this.isDone(t.statusId) || this.isCancelled(t.statusId)) return false;
+    return new Date(t.dueAt).getTime() < Date.now();
+  }
+
+  async loginAdmin(password: string): Promise<boolean> {
+    try {
+      await firstValueFrom(this.http.post('/api/auth/admin', { password }));
+      localStorage.setItem(ADMIN_KEY_STORAGE, password);
+      this.adminKey.set(password);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  logoutAdmin() {
+    localStorage.removeItem(ADMIN_KEY_STORAGE);
+    this.adminKey.set('');
+  }
+
+  private adminHeaders() {
+    return { headers: { 'x-admin-key': this.adminKey() } };
+  }
+
   async refresh() {
     try {
       this.data.set(await firstValueFrom(this.http.get<ApiData>('/api/data')));
@@ -107,17 +147,17 @@ export class TaskStore {
     await this.refresh();
   }
 
-  addTask(parentId: string | null, title: string) {
+  addTask(parentId: string | null, title: string, kind: 'task' | 'book' = 'task', dueAt: string | null = null) {
     if (!title.trim()) return;
-    return this.call(firstValueFrom(this.http.post('/api/tasks', { parentId, title })));
+    return this.call(firstValueFrom(this.http.post('/api/tasks', { parentId, title, kind, dueAt: dueAt || null })));
   }
-  updateTask(id: string, patch: Partial<Pick<Task, 'title' | 'description' | 'statusId' | 'collapsed'>>) {
+  updateTask(id: string, patch: Partial<Pick<Task, 'title' | 'description' | 'statusId' | 'collapsed' | 'kind' | 'dueAt'>>) {
     return this.call(firstValueFrom(this.http.patch(`/api/tasks/${id}`, patch)));
   }
   /** Drag & Drop: reorder before/after targetId, or move inside targetId as a subtask. */
-  moveTask(id: string, targetId: string | null, mode: 'before' | 'after' | 'inside') {
+  moveTask(id: string, targetId: string | null, mode: 'before' | 'after' | 'inside', rootKind?: 'task' | 'book') {
     if (!id || id === targetId) return;
-    return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/move`, { targetId, mode })));
+    return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/move`, { targetId, mode, rootKind })));
   }
   /** Moves task (with subtree) to trash. */
   removeTask(id: string) {
@@ -136,15 +176,15 @@ export class TaskStore {
 
   // ---- Library (shared repository of books, playlists, courses) ----
   async saveTaskToLibrary(taskId: string, kind: LibraryItem['kind'] = 'book', sourceUrl = '') {
-    await firstValueFrom(this.http.post(`/api/library/from-task/${taskId}`, { kind, sourceUrl }));
+    await firstValueFrom(this.http.post(`/api/library/from-task/${taskId}`, { kind, sourceUrl }, this.adminHeaders()));
     await this.refreshLibrary();
   }
   async createLibraryItem(body: { kind: LibraryItem['kind']; title: string; description?: string; sourceUrl?: string; items: any[] }) {
-    await firstValueFrom(this.http.post('/api/library', body));
+    await firstValueFrom(this.http.post('/api/library', body, this.adminHeaders()));
     await this.refreshLibrary();
   }
   async updateLibraryItem(id: string, patch: Partial<Pick<LibraryItem, 'kind' | 'title' | 'description' | 'sourceUrl' | 'items'>>) {
-    await firstValueFrom(this.http.patch(`/api/library/${id}`, patch));
+    await firstValueFrom(this.http.patch(`/api/library/${id}`, patch, this.adminHeaders()));
     await this.refreshLibrary();
   }
   async cloneFromLibrary(libId: string): Promise<string> {
@@ -153,7 +193,7 @@ export class TaskStore {
     return r.id;
   }
   async deleteLibraryItem(libId: string) {
-    await firstValueFrom(this.http.delete(`/api/library/${libId}`));
+    await firstValueFrom(this.http.delete(`/api/library/${libId}`, this.adminHeaders()));
     await this.refreshLibrary();
   }
 

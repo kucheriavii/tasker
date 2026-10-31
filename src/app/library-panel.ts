@@ -136,6 +136,11 @@ import { TaskStore } from './task-store';
     .preview { margin: 6px 0 2px; padding-left: 20px; font-size: 12px; max-height: 220px; overflow: auto; }
     .ok { border-color: var(--accent); color: var(--accent); background: #fff; }
     button.danger:hover { color: var(--danger); }
+    @media (max-width: 640px) {
+      .filters input { flex: 1 1 100%; }
+      .title { flex: 1 1 calc(100% - 75px); }
+      .erow.sub { margin-left: 10px; }
+    }
   `,
 })
 export class LibraryPanel {

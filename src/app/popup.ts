@@ -95,6 +95,9 @@ export class PopupService {
     input { width: 100%; margin-bottom: 12px; }
     .mactions { display: flex; justify-content: flex-end; gap: 8px; }
     .ok { border-color: var(--accent); color: var(--accent); background: #fff; font-weight: bold; }
+    @media (max-width: 640px) {
+      .mactions button { flex: 1; min-height: 38px; }
+    }
   `,
 })
 export class PopupModal {

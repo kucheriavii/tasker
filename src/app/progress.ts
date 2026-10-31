@@ -12,6 +12,11 @@ import { Component, computed, input } from '@angular/core';
     .bar { display: inline-block; width: 70px; height: 8px; border: 1px solid var(--fg); background: #fff; }
     .bar i { display: block; height: 100%; background: var(--accent); }
     .pct { font-size: 11px; color: var(--muted); min-width: 32px; text-align: right; }
+    @media (max-width: 640px) {
+      :host { gap: 4px; }
+      .bar { width: 48px; height: 7px; }
+      .pct { min-width: 26px; }
+    }
   `,
 })
 export class Progress {

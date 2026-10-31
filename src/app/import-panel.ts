@@ -142,6 +142,10 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
     h2 { font-size: 13px; margin: 0; }
     .ok { border-color: var(--accent); color: var(--accent); background: #fff; }
     button.danger:hover { color: var(--danger); }
+    @media (max-width: 640px) {
+      .ditem.sub { margin-left: 10px; }
+      .actions button { flex: 1 1 auto; }
+    }
   `,
   host: { '(window:paste)': 'onPaste($event)' },
 })

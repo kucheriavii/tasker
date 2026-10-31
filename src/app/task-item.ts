@@ -145,10 +145,13 @@ import { Progress } from './progress';
     .edit-btns { display: inline-flex; gap: 4px; align-items: center; }
     .due-in { font-size: 12px; max-width: 175px; }
     .due-badge {
+      display: inline-flex;
+      align-items: center;
       font-size: 11px;
       color: var(--muted);
       border: 1px solid var(--line);
       padding: 1px 5px;
+      margin-top: 5px;
       background: #fff;
       white-space: nowrap;
       border-radius: 2px;
@@ -187,7 +190,7 @@ import { Progress } from './progress';
         background: #fff;
         border: 1px solid var(--line);
         min-height: 34px;
-        max-height: 60px;
+        max-height: 64px;
         overflow: hidden;
       }
       .row.overdue {
@@ -262,8 +265,11 @@ import { Progress } from './progress';
         height: 0;
       }
       .due-badge, .badge {
+        display: inline-flex;
+        align-items: center;
         font-size: 9.5px;
         padding: 1px 3px;
+        margin-top: 5px;
         background: #f6f8fa;
         border: 1px solid var(--line);
         line-height: 1.15;

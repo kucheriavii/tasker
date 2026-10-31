@@ -139,6 +139,7 @@ button.ok { border-color: var(--accent); color: var(--accent); background: #fff;
   color: var(--muted);
   border: 1px solid var(--line);
   padding: 1px 5px;
+  margin-top: 5px;
   background: #fff;
   white-space: nowrap;
   border-radius: 2px;

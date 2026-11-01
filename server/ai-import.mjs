@@ -98,19 +98,26 @@ export function registerImport({ route, send, readBody, readJson, q, tx, nextPos
     const { title = '', description = '', items = [], targetKind = 'book' } = await readJson(req);
     if (!title.trim()) return send(res, 400, { error: 'title required' });
     const k = targetKind === 'task' ? 'task' : 'book';
-    const st = q('SELECT id FROM statuses ORDER BY pos LIMIT 1').get();
-    const ins = q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind) VALUES (?,?,?,?,?,?,?)');
-    const id = tx(() => {
+    const st = await q('SELECT id FROM statuses ORDER BY pos LIMIT 1').get();
+    const id = await tx(async () => {
       const rootId = randomUUID();
-      ins.run(rootId, null, title.trim(), String(description ?? '').trim(), st.id, nextPos('tasks', 'parent_id IS NULL AND kind=?', k), k);
-      const add = (list, parent) => (list || []).forEach((it, i) => {
-        const t = String(it?.title ?? '').trim();
-        if (!t) return;
-        const cid = randomUUID();
-        ins.run(cid, parent, t, String(it?.description ?? '').trim(), st.id, i, 'task');
-        if (Array.isArray(it.children)) add(it.children, cid);
-      });
-      add(items, rootId);
+      const pos = await nextPos('tasks', 'parent_id IS NULL AND kind=?', k);
+      await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind) VALUES (?,?,?,?,?,?,?)').run(
+        rootId, null, title.trim(), String(description ?? '').trim(), st.id, pos, k,
+      );
+      const add = async (list, parent) => {
+        for (let i = 0; i < (list || []).length; i++) {
+          const it = list[i];
+          const t = String(it?.title ?? '').trim();
+          if (!t) continue;
+          const cid = randomUUID();
+          await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind) VALUES (?,?,?,?,?,?,?)').run(
+            cid, parent, t, String(it?.description ?? '').trim(), st.id, i, 'task',
+          );
+          if (Array.isArray(it.children)) await add(it.children, cid);
+        }
+      };
+      await add(items, rootId);
       return rootId;
     });
     send(res, 201, { id });

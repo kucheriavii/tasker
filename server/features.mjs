@@ -69,31 +69,7 @@ async function generateAiTask({ topic, details }) {
   }
 }
 
-export function migrateFeatures(db) {
-  const cols = db.prepare('PRAGMA table_info(tasks)').all().map((c) => c.name);
-  if (!cols.includes('kind')) {
-    db.exec("ALTER TABLE tasks ADD COLUMN kind TEXT NOT NULL DEFAULT 'task'");
-  }
-  if (!cols.includes('due_at')) {
-    db.exec('ALTER TABLE tasks ADD COLUMN due_at TEXT');
-  }
-  db.exec(`
-    UPDATE tasks SET kind='task' WHERE kind NOT IN ('task', 'book');
-    CREATE TABLE IF NOT EXISTS library_items (
-      id TEXT PRIMARY KEY,
-      kind TEXT NOT NULL DEFAULT 'book',
-      title TEXT NOT NULL,
-      description TEXT NOT NULL DEFAULT '',
-      source_url TEXT NOT NULL DEFAULT '',
-      tree_json TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-    DELETE FROM library_items
-    WHERE rowid NOT IN (
-      SELECT MAX(rowid) FROM library_items GROUP BY lower(trim(title))
-    );
-  `);
-}
+export function migrateFeatures() {}
 
 export function registerFeatures({ route, send, readJson, q, tx, nextPos, descendants }) {
   const requireAdmin = (req) => {
@@ -112,30 +88,30 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
   // ---- Drag & Drop move / reparent / reorder ----
   route('POST', '/api/tasks/:id/move', async (req, res, { id }) => {
     const { targetId = null, mode = 'after', rootKind = null } = await readJson(req);
-    const task = q('SELECT id,parent_id,kind FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
+    const task = await q('SELECT id,parent_id,kind FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
     if (!task) return send(res, 404, { error: 'task not found' });
     if (targetId === id) return send(res, 204);
 
-    tx(() => {
+    await tx(async () => {
       if (targetId) {
-        const desc = new Set(descendants(id));
+        const desc = new Set(await descendants(id));
         if (desc.has(targetId)) throw fail('Cannot move a task into its own subtask', 400);
       }
 
       if (mode === 'inside') {
         if (!targetId) throw fail('targetId required for inside mode', 400);
-        const target = q('SELECT id FROM tasks WHERE id=? AND deleted_at IS NULL').get(targetId);
+        const target = await q('SELECT id FROM tasks WHERE id=? AND deleted_at IS NULL').get(targetId);
         if (!target) throw fail('target not found', 404);
-        q('UPDATE tasks SET collapsed=0 WHERE id=?').run(targetId);
-        const pos = nextPos('tasks', 'parent_id=?', targetId);
-        q("UPDATE tasks SET parent_id=?, pos=?, kind='task' WHERE id=?").run(targetId, pos, id);
+        await q('UPDATE tasks SET collapsed=0 WHERE id=?').run(targetId);
+        const pos = await nextPos('tasks', 'parent_id=?', targetId);
+        await q("UPDATE tasks SET parent_id=?, pos=?, kind='task' WHERE id=?").run(targetId, pos, id);
         return;
       }
 
       let newParentId = null;
       let newKind = rootKind || task.kind || 'task';
       if (targetId) {
-        const target = q('SELECT id,parent_id,kind FROM tasks WHERE id=? AND deleted_at IS NULL').get(targetId);
+        const target = await q('SELECT id,parent_id,kind FROM tasks WHERE id=? AND deleted_at IS NULL').get(targetId);
         if (!target) throw fail('target not found', 404);
         newParentId = target.parent_id;
         newKind = newParentId ? 'task' : (target.kind || 'task');
@@ -143,8 +119,8 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
 
       const siblings = (
         newParentId
-          ? q('SELECT id FROM tasks WHERE parent_id=? AND deleted_at IS NULL AND id<>? ORDER BY pos').all(newParentId, id)
-          : q('SELECT id FROM tasks WHERE parent_id IS NULL AND kind=? AND deleted_at IS NULL AND id<>? ORDER BY pos').all(newKind, id)
+          ? await q('SELECT id FROM tasks WHERE parent_id=? AND deleted_at IS NULL AND id<>? ORDER BY pos').all(newParentId, id)
+          : await q('SELECT id FROM tasks WHERE parent_id IS NULL AND kind=? AND deleted_at IS NULL AND id<>? ORDER BY pos').all(newKind, id)
       ).map((r) => r.id);
 
       const idx = targetId ? siblings.indexOf(targetId) : -1;
@@ -154,27 +130,28 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
         siblings.splice(mode === 'before' ? idx : idx + 1, 0, id);
       }
 
-      q('UPDATE tasks SET parent_id=?, kind=? WHERE id=?').run(newParentId, newKind, id);
-      const upd = q('UPDATE tasks SET pos=? WHERE id=?');
-      siblings.forEach((sid, i) => upd.run(i, sid));
+      await q('UPDATE tasks SET parent_id=?, kind=? WHERE id=?').run(newParentId, newKind, id);
+      for (let i = 0; i < siblings.length; i++) {
+        await q('UPDATE tasks SET pos=? WHERE id=?').run(i, siblings[i]);
+      }
     });
 
     send(res, 204);
   });
 
-  // ---- Shared Library (books, playlists, courses) — unique by title, Admin-only writes ----
+  // ---- Shared Library (books, playlists, courses) — unique by title ----
   const countNodes = (items) =>
     (items || []).reduce((n, it) => n + 1 + countNodes(it.children), 0);
 
-  const hasDuplicateName = (title, excludeId = null) => {
+  const hasDuplicateName = async (title, excludeId = null) => {
     const row = excludeId
-      ? q('SELECT id FROM library_items WHERE lower(trim(title)) = lower(trim(?)) AND id <> ?').get(title, excludeId)
-      : q('SELECT id FROM library_items WHERE lower(trim(title)) = lower(trim(?))').get(title);
+      ? await q('SELECT id FROM library_items WHERE lower(trim(title)) = lower(trim(?)) AND id <> ?').get(title, excludeId)
+      : await q('SELECT id FROM library_items WHERE lower(trim(title)) = lower(trim(?))').get(title);
     return !!row;
   };
 
-  route('GET', '/api/library', (_req, res) => {
-    const rows = q('SELECT id,kind,title,description,source_url,tree_json,created_at FROM library_items ORDER BY created_at DESC, rowid DESC').all();
+  route('GET', '/api/library', async (_req, res) => {
+    const rows = await q('SELECT id,kind,title,description,source_url,tree_json,created_at FROM library_items ORDER BY created_at DESC, id DESC').all();
     const list = rows.map((r) => {
       let items = [];
       try { items = JSON.parse(r.tree_json); } catch {}
@@ -196,11 +173,11 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
     const { kind = 'book', title = '', description = '', sourceUrl = '', items = [] } = await readJson(req);
     const cleanTitle = title.trim();
     if (!cleanTitle) return send(res, 400, { error: 'title required' });
-    if (hasDuplicateName(cleanTitle)) {
+    if (await hasDuplicateName(cleanTitle)) {
       return send(res, 409, { error: `"${cleanTitle}" is already in the library (duplicate names are not allowed).` });
     }
     const id = randomUUID();
-    q('INSERT INTO library_items (id,kind,title,description,source_url,tree_json) VALUES (?,?,?,?,?,?)').run(
+    await q('INSERT INTO library_items (id,kind,title,description,source_url,tree_json) VALUES (?,?,?,?,?,?)').run(
       id, kind, cleanTitle, description.trim(), sourceUrl.trim(), JSON.stringify(items || []),
     );
     send(res, 201, { id });
@@ -208,18 +185,18 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
 
   route('PATCH', '/api/library/:id', async (req, res, { id }) => {
     requireAdmin(req);
-    const existing = q('SELECT id,kind,title,description,source_url,tree_json FROM library_items WHERE id=?').get(id);
+    const existing = await q('SELECT id,kind,title,description,source_url,tree_json FROM library_items WHERE id=?').get(id);
     if (!existing) return send(res, 404, { error: 'library item not found' });
     const b = await readJson(req);
     const title = ('title' in b ? String(b.title).trim() : existing.title) || existing.title;
-    if (hasDuplicateName(title, id)) {
+    if (await hasDuplicateName(title, id)) {
       return send(res, 409, { error: `"${title}" is already in the library (duplicate names are not allowed).` });
     }
     const kind = 'kind' in b ? String(b.kind) : existing.kind;
     const description = 'description' in b ? String(b.description).trim() : existing.description;
     const sourceUrl = 'sourceUrl' in b ? String(b.sourceUrl).trim() : existing.source_url;
     const treeJson = 'items' in b ? JSON.stringify(b.items || []) : existing.tree_json;
-    q('UPDATE library_items SET kind=?, title=?, description=?, source_url=?, tree_json=? WHERE id=?').run(
+    await q('UPDATE library_items SET kind=?, title=?, description=?, source_url=?, tree_json=? WHERE id=?').run(
       kind, title, description, sourceUrl, treeJson, id,
     );
     send(res, 204);
@@ -227,50 +204,60 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
 
   route('POST', '/api/library/from-task/:id', async (req, res, { id }) => {
     const { kind = 'book', sourceUrl = '' } = await readJson(req);
-    const root = q('SELECT id,title,description FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
+    const root = await q('SELECT id,title,description FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
     if (!root) return send(res, 404, { error: 'task not found' });
-    if (hasDuplicateName(root.title)) {
+    if (await hasDuplicateName(root.title)) {
       return send(res, 409, { error: `"${root.title}" is already in the library (duplicate names are not allowed).` });
     }
-    const buildChildren = (pid) =>
-      q('SELECT id,title,description FROM tasks WHERE parent_id=? AND deleted_at IS NULL ORDER BY pos')
-        .all(pid)
-        .map((c) => ({ title: c.title, description: c.description || '', children: buildChildren(c.id) }));
-    const items = buildChildren(root.id);
+    const buildChildren = async (pid) => {
+      const children = await q('SELECT id,title,description FROM tasks WHERE parent_id=? AND deleted_at IS NULL ORDER BY pos').all(pid);
+      const res = [];
+      for (const c of children) {
+        res.push({ title: c.title, description: c.description || '', children: await buildChildren(c.id) });
+      }
+      return res;
+    };
+    const items = await buildChildren(root.id);
     const libId = randomUUID();
-    q('INSERT INTO library_items (id,kind,title,description,source_url,tree_json) VALUES (?,?,?,?,?,?)').run(
+    await q('INSERT INTO library_items (id,kind,title,description,source_url,tree_json) VALUES (?,?,?,?,?,?)').run(
       libId, kind, root.title.trim(), root.description || '', sourceUrl.trim(), JSON.stringify(items),
     );
     send(res, 201, { id: libId });
   });
 
-  route('POST', '/api/library/:id/clone', (_req, res, { id }) => {
-    const lib = q('SELECT title,description,source_url,tree_json FROM library_items WHERE id=?').get(id);
+  route('POST', '/api/library/:id/clone', async (_req, res, { id }) => {
+    const lib = await q('SELECT title,description,source_url,tree_json FROM library_items WHERE id=?').get(id);
     if (!lib) return send(res, 404, { error: 'library item not found' });
     const items = JSON.parse(lib.tree_json || '[]');
-    const st = q('SELECT id FROM statuses ORDER BY pos LIMIT 1').get();
-    const ins = q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind) VALUES (?,?,?,?,?,?,?)');
-    const rootId = tx(() => {
+    const st = await q('SELECT id FROM statuses ORDER BY pos LIMIT 1').get();
+    const rootId = await tx(async () => {
       const rid = randomUUID();
       const desc = [lib.description, lib.source_url ? `Source: ${lib.source_url}` : ''].filter(Boolean).join('\n');
-      ins.run(rid, null, lib.title, desc, st.id, nextPos('tasks', "parent_id IS NULL AND kind='book'"), 'book');
-      const add = (list, parent) =>
-        (list || []).forEach((it, i) => {
+      const pos = await nextPos('tasks', "parent_id IS NULL AND kind='book'");
+      await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind) VALUES (?,?,?,?,?,?,?)').run(
+        rid, null, lib.title, desc, st.id, pos, 'book',
+      );
+      const add = async (list, parent) => {
+        for (let i = 0; i < (list || []).length; i++) {
+          const it = list[i];
           const t = String(it?.title ?? '').trim();
-          if (!t) return;
+          if (!t) continue;
           const cid = randomUUID();
-          ins.run(cid, parent, t, String(it?.description ?? '').trim(), st.id, i, 'task');
-          if (Array.isArray(it.children)) add(it.children, cid);
-        });
-      add(items, rid);
+          await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind) VALUES (?,?,?,?,?,?,?)').run(
+            cid, parent, t, String(it?.description ?? '').trim(), st.id, i, 'task',
+          );
+          if (Array.isArray(it.children)) await add(it.children, cid);
+        }
+      };
+      await add(items, rid);
       return rid;
     });
     send(res, 201, { id: rootId });
   });
 
-  route('DELETE', '/api/library/:id', (req, res, { id }) => {
+  route('DELETE', '/api/library/:id', async (req, res, { id }) => {
     requireAdmin(req);
-    q('DELETE FROM library_items WHERE id=?').run(id);
+    await q('DELETE FROM library_items WHERE id=?').run(id);
     send(res, 204);
   });
 

@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tasker-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tasker
+      POSTGRES_USER: tasker
+      POSTGRES_PASSWORD: tasker_secret_password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tasker -d tasker"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  tasker:
+    build: .
+    container_name: tasker-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://tasker:tasker_secret_password@postgres:5432/tasker
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      PORT: 3000
+    volumes:
+      # Mount existing local SQLite data for automatic one-time migration to PostgreSQL
+      - ./server/data:/app/server/data:ro
+
+volumes:
+  pgdata:

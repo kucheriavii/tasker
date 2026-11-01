@@ -50,7 +50,7 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
         } @else {
           <p class="hint">{{ i18n.lang() === 'uk' ? 'вставте посилання на YouTube плейліст, книгу чи курс, або текст змісту/списку, або перетягніть / вставте (Ctrl+V) скріншот.' : 'paste a YouTube playlist link (works without AI key), a book / course page link, or the table of contents text, or drop / paste (Ctrl+V) / pick a screenshot.' }}</p>
           <input [value]="url()" (input)="onUrl($any($event.target).value)" [placeholder]="i18n.lang() === 'uk' ? 'https://www.youtube.com/playlist?list=... або посилання на курс/книгу' : 'https://www.youtube.com/playlist?list=... or book/course URL'" />
-          <textarea rows="5" [value]="text()" (input)="text.set($any($event.target).value)" [placeholder]="i18n.lang() === 'uk' ? '...або вставте сюди зміст книги, список тем, розділів чи завдань' : '...or paste table of contents / list here'"></textarea>
+          <textarea rows="5" [value]="text()" (input)="onText($any($event.target).value)" [placeholder]="i18n.lang() === 'uk' ? '...або вставте сюди зміст книги, список тем, розділів чи завдань' : '...or paste table of contents / list here'"></textarea>
 
           <div class="shot" (dragover)="$event.preventDefault()" (drop)="onDrop($event)">
             @if (preview()) {
@@ -172,6 +172,16 @@ export class ImportPanel {
     this.url.set(v);
     if (/youtube\.com|youtu\.be/i.test(v)) this.kind.set('playlist');
     else if (/udemy\.com|coursera\.org|edx\.org/i.test(v)) this.kind.set('course');
+  }
+
+  onText(v: string) {
+    const trimmed = v.trim();
+    if (!this.url() && /^https?:\/\/[^\s]+$/i.test(trimmed)) {
+      this.onUrl(trimmed);
+      this.text.set('');
+      return;
+    }
+    this.text.set(v);
   }
 
   count() {

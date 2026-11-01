@@ -54,7 +54,12 @@ async function generateAiTask({ topic, details }) {
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: 'application/json', responseSchema: AI_TASK_SCHEMA, temperature: 0.25 },
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: AI_TASK_SCHEMA,
+          temperature: 0.25,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       }),
       signal: AbortSignal.timeout(90000),
     },

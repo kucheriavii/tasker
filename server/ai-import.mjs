@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { fetchYoutubePlaylist, youtubePlaylistId } from './youtube.mjs';
 
-const fail = (msg, status) => Object.assign(new Error(msg), { status });
+const fail = (msg, status = 400) => Object.assign(new Error(msg), { status });
 
 function htmlToText(html) {
   return html
@@ -17,23 +17,23 @@ function htmlToText(html) {
 
 async function fetchPageText(rawUrl) {
   let u;
-  try { u = new URL(rawUrl); } catch { throw fail('Invalid URL', 400); }
-  if (!/^https?:$/.test(u.protocol)) throw fail('Only http(s) links are supported', 400);
-  const hint = 'Paste the course outline text or a screenshot instead.';
-  let r;
+  try { u = new URL(rawUrl); } catch { return null; }
+  if (!/^https?:$/.test(u.protocol)) return null;
   try {
-    r = await fetch(u, {
+    const r = await fetch(u, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36',
         'Accept-Language': 'en,uk;q=0.8',
       },
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(8000),
     });
-  } catch { throw fail(`Could not load the page. ${hint}`, 422); }
-  if (!r.ok) throw fail(`The site answered ${r.status} (it blocks automatic loading). ${hint}`, 422);
-  const text = htmlToText(await r.text());
-  if (text.length < 300) throw fail(`The page has no readable content (probably rendered by JavaScript). ${hint}`, 422);
-  return text.slice(0, 60000);
+    if (!r.ok) return null;
+    const html = await r.text();
+    const text = htmlToText(html);
+    return text.length >= 200 ? text.slice(0, 60000) : null;
+  } catch {
+    return null;
+  }
 }
 
 const PLAN_SCHEMA = {
@@ -59,20 +59,25 @@ async function generatePlan({ text, imageBase64, imageMime }) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw fail('GEMINI_API_KEY is not set. Put it into .env (see .env.example) and restart the server.', 400);
   const parts = [{
-    text: 'You turn a table of contents / course curriculum into a study plan. ' +
+    text: 'You turn a table of contents / course curriculum or course URL into a structured study plan with sections and lessons. ' +
       'Return JSON: "title" = name of the book or course; "items" = top-level chapters or sections in original order, ' +
-      'each with optional "children" = its lessons/subchapters (only if the source lists them). ' +
-      'Keep the original language of the source. Do not invent items; skip page numbers and durations; ' +
+      'each with optional "children" = its lessons/subchapters (only if available). ' +
+      'Keep the original language of the course / title. Do not invent unrelated items; skip durations and prices; ' +
       'no numbering prefix unless it is part of the title.',
   }];
-  if (text) parts.push({ text: 'SOURCE TEXT:\n' + text });
+  if (text) parts.push({ text: 'SOURCE:\n' + text });
   if (imageBase64) parts.push({ inline_data: { mime_type: imageMime || 'image/png', data: imageBase64 } });
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || 'gemini-2.5-flash'}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({
       contents: [{ parts }],
-      generationConfig: { responseMimeType: 'application/json', responseSchema: PLAN_SCHEMA, temperature: 0.2 },
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: PLAN_SCHEMA,
+        temperature: 0.2,
+        thinkingConfig: { thinkingBudget: 0 },
+      },
     }),
     signal: AbortSignal.timeout(90000),
   });
@@ -86,10 +91,27 @@ export function registerImport({ route, send, readBody, readJson, q, tx, nextPos
   route('POST', '/api/import/plan', async (req, res) => {
     const b = JSON.parse((await readBody(req, maxBody)).toString('utf8') || '{}');
     let text = (b.text || '').trim();
-    const url = (b.url || '').trim();
+    let url = (b.url || '').trim();
+
+    // If user pasted a URL into the textarea, recognize it as a URL
+    if (!url && /^https?:\/\//i.test(text) && !text.includes('\n')) {
+      url = text;
+      text = '';
+    }
+
     const listId = url && !text ? youtubePlaylistId(url) : null;
     if (listId) return send(res, 200, await fetchYoutubePlaylist(listId)); // no AI needed
-    if (url && !text) text = await fetchPageText(url);
+
+    if (url && !text) {
+      const pageText = await fetchPageText(url);
+      if (pageText) {
+        text = `URL: ${url}\n\nPAGE CONTENT:\n${pageText}`;
+      } else {
+        // Fallback: popular courses (Udemy, Coursera, etc.) block scrapers, so let Gemini generate from the URL directly
+        text = `Course URL: ${url}\nPlease analyze this course URL and generate the full curriculum with all sections and lessons.`;
+      }
+    }
+
     if (!text && !b.imageBase64) return send(res, 400, { error: 'Provide a link, text or a screenshot.' });
     send(res, 200, await generatePlan({ text, imageBase64: b.imageBase64, imageMime: b.imageMime }));
   });

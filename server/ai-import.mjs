@@ -1,6 +1,19 @@
 // AI import: screenshot / text / link -> draft plan (Gemini) -> tasks.
 import { randomUUID } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { fetchYoutubePlaylist, youtubePlaylistId } from './youtube.mjs';
+
+const hereDir = dirname(fileURLToPath(import.meta.url));
+function loadEnvIfNeeded() {
+  const envFile = join(hereDir, '..', '.env');
+  if (!existsSync(envFile)) return;
+  for (const line of readFileSync(envFile, 'utf8').split(/\r?\n/)) {
+    const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/.exec(line);
+    if (m && m[2]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  }
+}
 
 const fail = (msg, status = 400) => Object.assign(new Error(msg), { status });
 
@@ -56,6 +69,7 @@ const PLAN_SCHEMA = {
 };
 
 async function generatePlan({ text, imageBase64, imageMime }) {
+  loadEnvIfNeeded();
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw fail('GEMINI_API_KEY is not set. Put it into .env (see .env.example) and restart the server.', 400);
   const parts = [{
@@ -67,7 +81,8 @@ async function generatePlan({ text, imageBase64, imageMime }) {
   }];
   if (text) parts.push({ text: 'SOURCE:\n' + text });
   if (imageBase64) parts.push({ inline_data: { mime_type: imageMime || 'image/png', data: imageBase64 } });
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || 'gemini-2.5-flash'}:generateContent`, {
+  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({

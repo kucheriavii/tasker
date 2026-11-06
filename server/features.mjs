@@ -1,5 +1,18 @@
 // Drag & drop move, Admin auth, shared Library (books/playlists/courses), and AI Task Generator.
 import { randomUUID } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const hereDir = dirname(fileURLToPath(import.meta.url));
+function loadEnvIfNeeded() {
+  const envFile = join(hereDir, '..', '.env');
+  if (!existsSync(envFile)) return;
+  for (const line of readFileSync(envFile, 'utf8').split(/\r?\n/)) {
+    const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/.exec(line);
+    if (m && m[2]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  }
+}
 
 const fail = (msg, status = 400) => Object.assign(new Error(msg), { status });
 const adminPass = () => process.env.ADMIN_PASSWORD || 'admin';
@@ -36,6 +49,7 @@ const AI_TASK_SCHEMA = {
 };
 
 async function generateAiTask({ topic, details }) {
+  loadEnvIfNeeded();
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw fail('GEMINI_API_KEY is not set in .env', 400);
   const prompt =
@@ -47,8 +61,9 @@ async function generateAiTask({ topic, details }) {
     `TOPIC / GOAL: ${topic}\n` +
     (details ? `EXTRA CONTEXT / LEVEL: ${details}\n` : '');
 
+  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
   const r = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || 'gemini-2.5-flash'}:generateContent`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },

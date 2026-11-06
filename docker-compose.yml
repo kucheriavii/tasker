@@ -35,6 +35,9 @@ services:
     volumes:
       # Mount existing local SQLite data for automatic one-time migration to PostgreSQL
       - ./server/data:/app/server/data:ro
+      - ./.env:/app/.env:ro
+      - ./server/ai-import.mjs:/app/server/ai-import.mjs:ro
+      - ./server/features.mjs:/app/server/features.mjs:ro
 
 volumes:
   pgdata:

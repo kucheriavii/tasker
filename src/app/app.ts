@@ -44,7 +44,14 @@ export class App {
 
   switchTab(t: 'task' | 'book') {
     this.tab.set(t);
+    this.panel.set('none');
     this.store.openId.set(null);
+  }
+
+  onLibraryCloned(e: { id: string; targetKind: 'task' | 'book' }) {
+    this.tab.set(e.targetKind);
+    this.panel.set('none');
+    this.store.openId.set(e.id);
   }
 
   toggleMenu() {
@@ -75,6 +82,9 @@ export class App {
     if (this.store.isAdmin()) {
       if (await this.popup.confirm(t.confirmSwitchToUser, t.role)) {
         this.store.logoutAdmin();
+        if (this.panel() === 'import' || this.panel() === 'statuses' || this.panel() === 'trash') {
+          this.panel.set('none');
+        }
       }
       return;
     }
@@ -134,6 +144,7 @@ export class App {
   }
 
   async saveToLibrary(id: string) {
+    if (!this.store.isAdmin()) return;
     try {
       await this.store.saveTaskToLibrary(id, 'book');
       this.panel.set('library');

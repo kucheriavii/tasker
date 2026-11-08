@@ -187,8 +187,8 @@ export class TaskStore {
     await firstValueFrom(this.http.patch(`/api/library/${id}`, patch, this.adminHeaders()));
     await this.refreshLibrary();
   }
-  async cloneFromLibrary(libId: string): Promise<string> {
-    const r = await firstValueFrom(this.http.post<{ id: string }>(`/api/library/${libId}/clone`, {}));
+  async cloneFromLibrary(libId: string, targetKind: 'task' | 'book' = 'book'): Promise<string> {
+    const r = await firstValueFrom(this.http.post<{ id: string }>(`/api/library/${libId}/clone`, { targetKind }));
     await this.refresh();
     return r.id;
   }

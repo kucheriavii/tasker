@@ -43,7 +43,7 @@ export const DICT = {
     tasksHeading: 'завдання',
     booksHeading: 'книги та курси',
     noTasksYet: 'завдань ще немає. додайте перше вище.',
-    noBooksYet: 'книг та курсів ще немає. скористайтеся [бібліотекою] чи [імпортом] або введіть вище.',
+    noBooksYet: 'книг та курсів ще немає. оберіть курс у [бібліотеці] або додайте назву вище.',
 
     // Detail view
     rootTasks: '~ завдання',
@@ -115,10 +115,11 @@ export const DICT = {
 
     // Library panel
     libraryHeading: '# бібліотека (спільні книги / курси / плейлісти)',
-    libraryHintAdmin: 'ви увійшли як адмін: ви можете додавати, редагувати та видаляти елементи.',
-    libraryHintUser: 'режим користувача: додавайте нові матеріали через [імпорт] або копіюйте будь-який курс чи книгу в свій список.',
+    libraryHintAdmin: 'режим адміністратора: ви можете додавати через імпорт, редагувати та видаляти матеріали з бібліотеки.',
+    libraryHintUser: 'режим користувача: переглядайте матеріали та переносьте будь-яку книгу чи курс собі в завдання або курси (тільки читання).',
     searchLibrary: 'пошук у бібліотеці...',
-    cloneToBooks: 'додати в мої курси',
+    cloneToBooks: 'додати в курси',
+    cloneToTasks: 'додати в завдання',
     alreadyInBooks: 'вже додано в курси',
     editLibraryItem: 'редагувати',
     deleteLibraryItem: 'видалити',
@@ -181,7 +182,7 @@ export const DICT = {
     tasksHeading: 'tasks',
     booksHeading: 'books & courses',
     noTasksYet: 'no short-term tasks yet. add one above.',
-    noBooksYet: 'no books or courses yet. use [library] or [import] to add one, or type above.',
+    noBooksYet: 'no books or courses yet. choose a course from the [library] or type above.',
 
     // Detail view
     rootTasks: '~ tasks',
@@ -253,10 +254,11 @@ export const DICT = {
 
     // Library panel
     libraryHeading: '# library (shared books / playlists / courses)',
-    libraryHintAdmin: 'you are admin: you can edit or delete items here, or add new ones via [import].',
-    libraryHintUser: 'user mode: contribute new content via [import] or clone any course or book into your list.',
+    libraryHintAdmin: 'admin mode: you can add via import, edit, and delete library items.',
+    libraryHintUser: 'user mode: browse items and add any book or course to your tasks or courses (read-only).',
     searchLibrary: 'search library...',
-    cloneToBooks: 'clone to my courses',
+    cloneToBooks: 'add to courses',
+    cloneToTasks: 'add to tasks',
     alreadyInBooks: 'already in courses',
     editLibraryItem: 'edit',
     deleteLibraryItem: 'delete',

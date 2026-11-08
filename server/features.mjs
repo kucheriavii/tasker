@@ -190,6 +190,7 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
   });
 
   route('POST', '/api/library', async (req, res) => {
+    requireAdmin(req);
     const { kind = 'book', title = '', description = '', sourceUrl = '', items = [] } = await readJson(req);
     const cleanTitle = title.trim();
     if (!cleanTitle) return send(res, 400, { error: 'title required' });
@@ -223,6 +224,7 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
   });
 
   route('POST', '/api/library/from-task/:id', async (req, res, { id }) => {
+    requireAdmin(req);
     const { kind = 'book', sourceUrl = '' } = await readJson(req);
     const root = await q('SELECT id,title,description FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
     if (!root) return send(res, 404, { error: 'task not found' });
@@ -245,7 +247,9 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
     send(res, 201, { id: libId });
   });
 
-  route('POST', '/api/library/:id/clone', async (_req, res, { id }) => {
+  route('POST', '/api/library/:id/clone', async (req, res, { id }) => {
+    const { targetKind = 'book' } = await readJson(req).catch(() => ({}));
+    const k = targetKind === 'task' ? 'task' : 'book';
     const lib = await q('SELECT title,description,source_url,tree_json FROM library_items WHERE id=?').get(id);
     if (!lib) return send(res, 404, { error: 'library item not found' });
     const items = JSON.parse(lib.tree_json || '[]');
@@ -253,9 +257,9 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
     const rootId = await tx(async () => {
       const rid = randomUUID();
       const desc = [lib.description, lib.source_url ? `Source: ${lib.source_url}` : ''].filter(Boolean).join('\n');
-      const pos = await nextPos('tasks', "parent_id IS NULL AND kind='book'");
+      const pos = await nextPos('tasks', 'parent_id IS NULL AND kind=?', k);
       await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind) VALUES (?,?,?,?,?,?,?)').run(
-        rid, null, lib.title, desc, st.id, pos, 'book',
+        rid, null, lib.title, desc, st.id, pos, k,
       );
       const add = async (list, parent) => {
         for (let i = 0; i < (list || []).length; i++) {
@@ -283,6 +287,7 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
 
   // ---- AI Task Generator ("не знаю як це вчити -> згенеруй мені таску") ----
   route('POST', '/api/ai-task/generate', async (req, res) => {
+    requireAdmin(req);
     const { topic = '', details = '' } = await readJson(req);
     if (!topic.trim()) return send(res, 400, { error: 'Enter what you want to learn or do' });
     send(res, 200, await generateAiTask({ topic: topic.trim(), details: details.trim() }));

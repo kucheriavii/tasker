@@ -38,6 +38,7 @@ services:
       - ./.env:/app/.env:ro
       - ./server/ai-import.mjs:/app/server/ai-import.mjs:ro
       - ./server/features.mjs:/app/server/features.mjs:ro
+      - ./server/server.mjs:/app/server/server.mjs:ro
 
 volumes:
   pgdata:

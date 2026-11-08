@@ -83,7 +83,8 @@ import { I18nService } from './i18n';
               @if (store.isAdmin()) {
                 <button (click)="startEdit(item)">{{ i18n.t().edit }}</button>
               }
-              <button class="ok" (click)="cloneItem(item.id)">+ {{ i18n.t().cloneToBooks }}</button>
+              <button class="ok" (click)="cloneItem(item.id, 'task')">+ {{ i18n.t().cloneToTasks }}</button>
+              <button class="ok" (click)="cloneItem(item.id, 'book')">+ {{ i18n.t().cloneToBooks }}</button>
               @if (store.isAdmin()) {
                 <button class="danger" (click)="removeItem(item.id)" [title]="i18n.t().deleteLibraryItem">x</button>
               }
@@ -148,6 +149,7 @@ export class LibraryPanel {
   private popup = inject(PopupService);
   readonly i18n = inject(I18nService);
   readonly closed = output<void>();
+  readonly cloned = output<{ id: string; targetKind: 'task' | 'book' }>();
 
   readonly kinds: ('all' | LibraryItem['kind'])[] = ['all', 'book', 'playlist', 'course', 'other'];
 
@@ -237,9 +239,9 @@ export class LibraryPanel {
     }
   }
 
-  async cloneItem(libId: string) {
-    const newId = await this.store.cloneFromLibrary(libId);
-    this.store.openId.set(newId);
+  async cloneItem(libId: string, targetKind: 'task' | 'book' = 'book') {
+    const newId = await this.store.cloneFromLibrary(libId, targetKind);
+    this.cloned.emit({ id: newId, targetKind });
     this.closed.emit();
   }
 

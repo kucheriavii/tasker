@@ -218,8 +218,18 @@ route('DELETE', '/api/images/:id', async (_r, res, { id }) => {
   send(res, 204);
 });
 
+const adminPass = () => process.env.ADMIN_PASSWORD || 'admin';
+function requireAdmin(req) {
+  if ((req.headers['x-admin-key'] || '') !== adminPass()) {
+    const err = new Error('Admin role required');
+    err.status = 403;
+    throw err;
+  }
+}
+
 // ---- statuses ----
 route('POST', '/api/statuses', async (req, res) => {
+  requireAdmin(req);
   const { name = '' } = await readJson(req);
   if (!name.trim()) return send(res, 400, { error: 'name required' });
   const pos = await nextPos('statuses');
@@ -228,6 +238,7 @@ route('POST', '/api/statuses', async (req, res) => {
 });
 
 route('PATCH', '/api/statuses/:id', async (req, res, { id }) => {
+  requireAdmin(req);
   const b = await readJson(req);
   if ('name' in b) await q('UPDATE statuses SET name=? WHERE id=?').run(String(b.name), id);
   for (const flag of ['done', 'cancelled', 'active']) {
@@ -238,6 +249,7 @@ route('PATCH', '/api/statuses/:id', async (req, res, { id }) => {
 });
 
 route('POST', '/api/statuses/:id/move', async (req, res, { id }) => {
+  requireAdmin(req);
   const { dir } = await readJson(req);
   await tx(async () => {
     const list = (await q('SELECT id FROM statuses ORDER BY pos').all()).map((s) => s.id);
@@ -251,7 +263,8 @@ route('POST', '/api/statuses/:id/move', async (req, res, { id }) => {
   send(res, 204);
 });
 
-route('DELETE', '/api/statuses/:id', async (_r, res, { id }) => {
+route('DELETE', '/api/statuses/:id', async (req, res, { id }) => {
+  requireAdmin(req);
   await tx(async () => {
     const rest = await q('SELECT id FROM statuses WHERE id<>? ORDER BY pos').all(id);
     if (!rest.length) return;
@@ -261,8 +274,8 @@ route('DELETE', '/api/statuses/:id', async (_r, res, { id }) => {
   send(res, 204);
 });
 
-registerImport({ route, send, readBody, readJson, q, tx, nextPos, maxBody: MAX_IMAGE * 2 });
-registerFeatures({ route, send, readJson, q, tx, nextPos, descendants });
+registerImport({ route, send, readBody, readJson, q, tx, nextPos, maxBody: MAX_IMAGE * 2, requireAdmin });
+registerFeatures({ route, send, readJson, q, tx, nextPos, descendants, requireAdmin });
 
 // Static file serving for production (Single Page Application fallback to index.html)
 const MIME_TYPES = {

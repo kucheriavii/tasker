@@ -102,8 +102,16 @@ async function generatePlan({ text, imageBase64, imageMime }) {
   try { return JSON.parse(raw); } catch { throw fail('Model returned an unreadable answer, try again.', 502); }
 }
 
-export function registerImport({ route, send, readBody, readJson, q, tx, nextPos, maxBody }) {
+export function registerImport({ route, send, readBody, readJson, q, tx, nextPos, maxBody, requireAdmin }) {
+  const adminPass = () => process.env.ADMIN_PASSWORD || 'admin';
+  const requireAdminFn = requireAdmin || ((req) => {
+    if ((req.headers['x-admin-key'] || '') !== adminPass()) {
+      throw Object.assign(new Error('Admin role required for import.'), { status: 403 });
+    }
+  });
+
   route('POST', '/api/import/plan', async (req, res) => {
+    requireAdminFn(req);
     const b = JSON.parse((await readBody(req, maxBody)).toString('utf8') || '{}');
     let text = (b.text || '').trim();
     let url = (b.url || '').trim();
@@ -132,6 +140,7 @@ export function registerImport({ route, send, readBody, readJson, q, tx, nextPos
   });
 
   route('POST', '/api/import/create', async (req, res) => {
+    requireAdminFn(req);
     const { title = '', description = '', items = [], targetKind = 'book' } = await readJson(req);
     if (!title.trim()) return send(res, 400, { error: 'title required' });
     const k = targetKind === 'task' ? 'task' : 'book';

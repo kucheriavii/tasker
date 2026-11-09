@@ -19,16 +19,18 @@ export class App {
   readonly i18n = inject(I18nService);
   /** Active top-level tab: 'task' = short-term tasks, 'book' = long-term books/courses. */
   readonly tab = signal<'task' | 'book'>('task');
-  readonly panel = signal<'none' | 'statuses' | 'trash' | 'import'>('none');
+  readonly panel = signal<'none' | 'statuses' | 'trash' | 'import' | 'purgatory'>('none');
   readonly menuOpen = signal(false);
   readonly dragging = signal(false);
   readonly rootDrop = signal(false);
   readonly editTitle = signal(false);
   readonly editDesc = signal(false);
+  readonly editTags = signal(false);
   readonly descBox = viewChild<ElementRef<HTMLTextAreaElement>>('dd');
+  readonly tagsInput = viewChild<ElementRef<HTMLInputElement>>('tagsBox');
 
   readonly activeList = computed(() =>
-    this.tab() === 'book' ? this.store.books() : this.store.tree());
+    this.tab() === 'book' ? this.store.filteredBooks() : this.store.tree());
 
   constructor() {
     // leave edit modes when navigating to another task; sync tab with root task kind
@@ -36,6 +38,7 @@ export class App {
       this.store.openId();
       this.editTitle.set(false);
       this.editDesc.set(false);
+      this.editTags.set(false);
       const root = this.store.breadcrumbs()[0];
       if (root) this.tab.set(root.kind === 'book' ? 'book' : 'task');
     });
@@ -60,7 +63,7 @@ export class App {
     this.closeMenu();
   }
 
-  toggleMobile(p: 'statuses' | 'trash' | 'import') {
+  toggleMobile(p: 'statuses' | 'trash' | 'import' | 'purgatory') {
     this.toggle(p);
     this.closeMenu();
   }
@@ -75,7 +78,7 @@ export class App {
     if (this.store.isAdmin()) {
       if (await this.popup.confirm(t.confirmSwitchToUser, t.role)) {
         this.store.logoutAdmin();
-        if (this.panel() === 'import' || this.panel() === 'statuses' || this.panel() === 'trash') {
+        if (this.panel() === 'import' || this.panel() === 'statuses' || this.panel() === 'trash' || this.panel() === 'purgatory') {
           this.panel.set('none');
         }
       }
@@ -90,6 +93,37 @@ export class App {
     if (pwd === null) return;
     const ok = await this.store.loginAdmin(pwd);
     if (!ok) await this.popup.alert(t.invalidAdminPassword, t.accessDenied);
+  }
+
+  async purgeBook(id: string, title: string) {
+    if (await this.popup.confirm(this.i18n.t().confirmPurgeBook(title), this.i18n.t().purgeBookBtn)) {
+      this.store.purgeTask(id);
+    }
+  }
+
+  async emptyPurgatory() {
+    if (await this.popup.confirm(this.i18n.t().confirmEmptyPurgatory, this.i18n.t().purgatory)) {
+      this.store.emptyPurgatory();
+    }
+  }
+
+  saveTags(id: string, tags: string) {
+    this.store.updateTask(id, { tags: tags.trim() });
+    this.editTags.set(false);
+  }
+
+  parseTags(tags: string | null | undefined): string[] {
+    return (tags || '').split(',').map((t) => t.trim().toLowerCase().replace(/^#/, '')).filter(Boolean);
+  }
+
+  filterByTag(tag: string) {
+    this.store.selectedTag.set(tag);
+    this.store.openId.set(null);
+    this.tab.set('book');
+  }
+
+  toggle(p: 'statuses' | 'trash' | 'import' | 'purgatory') {
+    this.panel.set(this.panel() === p ? 'none' : p);
   }
 
   async resetSubtasks(id: string, statusId: string, name: string) {
@@ -165,10 +199,6 @@ export class App {
     if (!dragged) return;
     e.preventDefault();
     this.store.moveTask(dragged, null, 'after', this.tab());
-  }
-
-  toggle(p: 'statuses' | 'trash' | 'import') {
-    this.panel.set(this.panel() === p ? 'none' : p);
   }
 
   /** Ctrl+V of an image while a task is open attaches it. */

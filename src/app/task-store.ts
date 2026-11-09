@@ -64,6 +64,45 @@ export class TaskStore {
   readonly books = computed<Task[]>(() =>
     this.allRoots().filter((t) => t.kind === 'book'));
 
+  /** Book search and tag filter signals */
+  readonly bookSearch = signal<string>('');
+  readonly selectedTag = signal<string | null>(null);
+
+  /** All unique tags across all active books */
+  readonly allBookTags = computed<string[]>(() => {
+    const set = new Set<string>();
+    for (const b of this.books()) {
+      if (b.tags) {
+        for (const t of b.tags.split(',')) {
+          const clean = t.trim().toLowerCase().replace(/^#/, '');
+          if (clean) set.add(clean);
+        }
+      }
+    }
+    return Array.from(set).sort();
+  });
+
+  /** Filtered books based on search query and selected tag */
+  readonly filteredBooks = computed<Task[]>(() => {
+    const list = this.books();
+    const q = this.bookSearch().trim().toLowerCase();
+    const tag = this.selectedTag()?.trim().toLowerCase();
+    if (!q && !tag) return list;
+    return list.filter((b) => {
+      if (tag) {
+        const bTags = (b.tags || '').split(',').map((t) => t.trim().toLowerCase().replace(/^#/, ''));
+        if (!bTags.includes(tag)) return false;
+      }
+      if (q) {
+        const inTitle = b.title.toLowerCase().includes(q);
+        const inDesc = (b.description || '').toLowerCase().includes(q);
+        const inTags = (b.tags || '').toLowerCase().includes(q);
+        if (!inTitle && !inDesc && !inTags) return false;
+      }
+      return true;
+    });
+  });
+
   private index = computed(() => {
     const m = new Map<string, Task>();
     const walk = (l: Task[]) => l.forEach((t) => { m.set(t.id, t); walk(t.children); });
@@ -71,9 +110,13 @@ export class TaskStore {
     return m;
   });
 
-  /** Trashed tasks (flat, newest first). */
+  /** Trashed tasks (flat, newest first; books go to purgatory). */
   readonly trash = computed<TaskRow[]>(() =>
-    this.data().tasks.filter((t) => t.deletedAt).sort((a, b) => b.deletedAt!.localeCompare(a.deletedAt!)));
+    this.data().tasks.filter((t) => t.deletedAt && t.kind !== 'book').sort((a, b) => b.deletedAt!.localeCompare(a.deletedAt!)));
+
+  /** Deleted books & courses (admin purgatory, newest first). */
+  readonly purgatory = computed<TaskRow[]>(() =>
+    this.data().tasks.filter((t) => t.deletedAt && t.kind === 'book' && t.parentId === null).sort((a, b) => b.deletedAt!.localeCompare(a.deletedAt!)));
 
   readonly open = computed<Task | null>(() => {
     const id = this.openId();
@@ -147,11 +190,11 @@ export class TaskStore {
     await this.refresh();
   }
 
-  addTask(parentId: string | null, title: string, kind: 'task' | 'book' = 'task', dueAt: string | null = null) {
+  addTask(parentId: string | null, title: string, kind: 'task' | 'book' = 'task', dueAt: string | null = null, tags = '') {
     if (!title.trim()) return;
-    return this.call(firstValueFrom(this.http.post('/api/tasks', { parentId, title, kind, dueAt: dueAt || null }, this.adminHeaders())));
+    return this.call(firstValueFrom(this.http.post('/api/tasks', { parentId, title, kind, dueAt: dueAt || null, tags: tags || '' }, this.adminHeaders())));
   }
-  updateTask(id: string, patch: Partial<Pick<Task, 'title' | 'description' | 'statusId' | 'collapsed' | 'kind' | 'dueAt'>>) {
+  updateTask(id: string, patch: Partial<Pick<Task, 'title' | 'description' | 'statusId' | 'collapsed' | 'kind' | 'dueAt' | 'tags'>>) {
     return this.call(firstValueFrom(this.http.patch(`/api/tasks/${id}`, patch, this.adminHeaders())));
   }
   /** Drag & Drop: reorder before/after targetId, or move inside targetId as a subtask. */
@@ -159,7 +202,7 @@ export class TaskStore {
     if (!id || id === targetId) return;
     return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/move`, { targetId, mode, rootKind }, this.adminHeaders())));
   }
-  /** Moves task (with subtree) to trash. */
+  /** Moves task (with subtree) to trash / purgatory. */
   removeTask(id: string) {
     if (this.openId() === id || this.breadcrumbs().some((b) => b.id === id)) {
       this.openId.set(this.index().get(id)?.parentId ?? null);
@@ -173,6 +216,7 @@ export class TaskStore {
   restoreTask(id: string) { return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/restore`, {}, this.adminHeaders()))); }
   purgeTask(id: string) { return this.call(firstValueFrom(this.http.delete(`/api/trash/${id}`, this.adminHeaders()))); }
   emptyTrash() { return this.call(firstValueFrom(this.http.delete('/api/trash', this.adminHeaders()))); }
+  emptyPurgatory() { return this.call(firstValueFrom(this.http.delete('/api/purgatory', this.adminHeaders()))); }
 
   /** Deep clones a book (or task tree) to tasks tab with fresh initial status. */
   async cloneBookToTasks(bookId: string): Promise<string> {

@@ -31,10 +31,12 @@ async function getData() {
   const byTask = new Map();
   for (const i of imgs) (byTask.get(i.task_id) ?? byTask.set(i.task_id, []).get(i.task_id)).push(i.id);
   const tasks = (await q(
-    'SELECT id,parent_id,title,description,status_id,collapsed,deleted_at,kind,due_at FROM tasks ORDER BY pos',
+    'SELECT id,parent_id,title,description,status_id,collapsed,deleted_at,kind,due_at,tags FROM tasks ORDER BY pos',
   ).all()).map((t) => ({
     id: t.id, parentId: t.parent_id, title: t.title, description: t.description,
-    statusId: t.status_id, collapsed: !!t.collapsed, deletedAt: t.deleted_at, kind: t.kind === 'book' ? 'book' : 'task', dueAt: t.due_at || null,
+    statusId: t.status_id, collapsed: !!t.collapsed, deletedAt: t.deleted_at,
+    kind: t.kind === 'book' ? 'book' : 'task', dueAt: t.due_at || null,
+    tags: t.tags || '',
     imageIds: byTask.get(t.id) ?? [],
   }));
   return { statuses, tasks };
@@ -91,7 +93,7 @@ route('GET', '/api/data', async (_r, res) => send(res, 200, await getData()));
 
 // ---- tasks ----
 route('POST', '/api/tasks', async (req, res) => {
-  const { parentId = null, title = '', kind = 'task', dueAt = null } = await readJson(req);
+  const { parentId = null, title = '', kind = 'task', dueAt = null, tags = '' } = await readJson(req);
   const k = parentId ? 'task' : (kind === 'book' ? 'book' : 'task');
   if (k === 'book') requireAdmin(req);
   if (parentId) {
@@ -105,8 +107,8 @@ route('POST', '/api/tasks', async (req, res) => {
   const pos = parentId
     ? await nextPos('tasks', 'parent_id=?', parentId)
     : await nextPos('tasks', 'parent_id IS NULL AND kind=?', k);
-  await q('INSERT INTO tasks (id,parent_id,title,status_id,pos,kind,due_at) VALUES (?,?,?,?,?,?,?)').run(
-    id, parentId, title.trim(), st.id, pos, k, dueAt || null,
+  await q('INSERT INTO tasks (id,parent_id,title,status_id,pos,kind,due_at,tags) VALUES (?,?,?,?,?,?,?,?)').run(
+    id, parentId, title.trim(), st.id, pos, k, dueAt || null, String(tags || '').trim(),
   );
   send(res, 201, { id });
 });
@@ -181,7 +183,7 @@ route('PATCH', '/api/tasks/:id', async (req, res, { id }) => {
   } else if (b.kind === 'book') {
     requireAdmin(req);
   }
-  const map = { title: 'title', description: 'description', statusId: 'status_id', collapsed: 'collapsed', kind: 'kind', dueAt: 'due_at' };
+  const map = { title: 'title', description: 'description', statusId: 'status_id', collapsed: 'collapsed', kind: 'kind', dueAt: 'due_at', tags: 'tags' };
   const sets = []; const vals = [];
   for (const [k, col] of Object.entries(map)) if (k in b) {
     sets.push(`${col}=?`); vals.push(k === 'collapsed' ? (b[k] ? 1 : 0) : b[k]);
@@ -193,12 +195,17 @@ route('PATCH', '/api/tasks/:id', async (req, res, { id }) => {
   send(res, 204);
 });
 
-// soft delete -> trash
+// soft delete -> trash (tasks) or purgatory (books)
 route('DELETE', '/api/tasks/:id', async (req, res, { id }) => {
   const root = await getRootTask(id);
   if (root && root.kind === 'book') requireAdmin(req);
   const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
-  await q('UPDATE tasks SET deleted_at=? WHERE id=? AND deleted_at IS NULL').run(nowStr, id);
+  await tx(async () => {
+    const desc = await descendants(id);
+    for (const d of [id, ...desc]) {
+      await q('UPDATE tasks SET deleted_at=? WHERE id=? AND deleted_at IS NULL').run(nowStr, d);
+    }
+  });
   send(res, 204);
 });
 
@@ -210,18 +217,50 @@ route('POST', '/api/tasks/:id/restore', async (req, res, { id }) => {
       const pos = await nextPos('tasks', 'parent_id IS NULL');
       await q('UPDATE tasks SET parent_id=NULL, pos=? WHERE id=?').run(pos, id);
     }
-    await q('UPDATE tasks SET deleted_at=NULL WHERE id=?').run(id);
+    const desc = await descendants(id);
+    for (const d of [id, ...desc]) {
+      await q('UPDATE tasks SET deleted_at=NULL WHERE id=?').run(d);
+    }
   });
   send(res, 204);
 });
 
-route('DELETE', '/api/trash/:id', async (_r, res, { id }) => {
-  await q('DELETE FROM tasks WHERE id=? AND deleted_at IS NOT NULL').run(id);
+route('DELETE', '/api/trash/:id', async (req, res, { id }) => {
+  const root = await getRootTask(id);
+  if (root && root.kind === 'book') requireAdmin(req);
+  await tx(async () => {
+    const desc = await descendants(id);
+    for (const d of [id, ...desc]) {
+      await q('DELETE FROM images WHERE task_id=?').run(d);
+      await q('DELETE FROM tasks WHERE id=?').run(d);
+    }
+  });
   send(res, 204);
 });
 
 route('DELETE', '/api/trash', async (_r, res) => {
-  await q('DELETE FROM tasks WHERE deleted_at IS NOT NULL').run();
+  await tx(async () => {
+    const rows = await q("SELECT id FROM tasks WHERE deleted_at IS NOT NULL AND kind<>'book'").all();
+    for (const r of rows) {
+      await q('DELETE FROM images WHERE task_id=?').run(r.id);
+      await q('DELETE FROM tasks WHERE id=?').run(r.id);
+    }
+  });
+  send(res, 204);
+});
+
+route('DELETE', '/api/purgatory', async (req, res) => {
+  requireAdmin(req);
+  await tx(async () => {
+    const rows = await q("SELECT id FROM tasks WHERE deleted_at IS NOT NULL AND kind='book'").all();
+    for (const r of rows) {
+      const desc = await descendants(r.id);
+      for (const d of [r.id, ...desc]) {
+        await q('DELETE FROM images WHERE task_id=?').run(d);
+        await q('DELETE FROM tasks WHERE id=?').run(d);
+      }
+    }
+  });
   send(res, 204);
 });
 

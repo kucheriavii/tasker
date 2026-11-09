@@ -56,7 +56,7 @@ import { I18nService } from './i18n';
           }
         </div>
 
-        @if (!editing() && (task().dueAt || task().description || task().imageIds.length)) {
+        @if (!editing() && (task().dueAt || task().description || task().imageIds.length || parsedTags().length)) {
           <div class="badges">
             @if (task().dueAt) {
               <span class="due-badge" [class.overdue]="store.isOverdue(task())" [title]="i18n.t().duePrefix + formatDue(task().dueAt!)">
@@ -65,6 +65,9 @@ import { I18nService } from './i18n';
             }
             @if (task().description) { <span class="badge" title="has description">[desc]</span> }
             @if (task().imageIds.length) { <span class="badge" title="images">[img:{{ task().imageIds.length }}]</span> }
+            @for (tg of parsedTags(); track tg) {
+              <span class="tag-pill" (click)="$event.stopPropagation(); onTagClick(tg)" [title]="'filter by #' + tg">#{{ tg }}</span>
+            }
           </div>
         } @else {
           <div class="badges empty-badges"></div>
@@ -201,6 +204,25 @@ import { I18nService } from './i18n';
       white-space: nowrap;
     }
     .clone-btn:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+    .tag-pill {
+      display: inline-flex;
+      align-items: center;
+      font-size: 10px;
+      color: var(--accent);
+      background: #f0f7ff;
+      border: 1px solid #cce3ff;
+      padding: 0 5px;
+      margin-top: 5px;
+      border-radius: 10px;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+      line-height: 1.3;
+    }
+    .tag-pill:hover {
       background: var(--accent);
       color: #fff;
     }
@@ -419,6 +441,14 @@ export class TaskItem {
   readonly currentStatusName = computed(() =>
     this.store.statuses().find((s) => s.id === this.task().statusId)?.name ?? '');
 
+  readonly parsedTags = computed(() =>
+    (this.task().tags || '').split(',').map((t) => t.trim().toLowerCase().replace(/^#/, '')).filter(Boolean));
+
+  onTagClick(tag: string) {
+    this.store.selectedTag.set(tag);
+    this.store.openId.set(null);
+  }
+
   async cloneBook() {
     try {
       const newId = await this.store.cloneBookToTasks(this.task().id);
@@ -458,6 +488,13 @@ export class TaskItem {
   }
   async remove() {
     const t = this.task();
+    if (t.rootKind === 'book') {
+      const msg = this.i18n.t().confirmMoveBookToPurgatory(t.title);
+      if (await this.popup.confirm(msg, this.i18n.t().moveToPurgatoryBtn)) {
+        this.store.removeTask(t.id);
+      }
+      return;
+    }
     const msg = t.children.length
       ? this.i18n.t().confirmDeleteTaskWithSubs(t.title)
       : this.i18n.t().confirmDeleteTask(t.title);

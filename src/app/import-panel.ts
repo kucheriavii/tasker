@@ -8,7 +8,7 @@ import { I18nService } from './i18n';
 
 interface DraftChild { title: string; description?: string; }
 interface DraftItem { title: string; description?: string; children: DraftChild[]; }
-interface Draft { title: string; description?: string; items: DraftItem[]; }
+interface Draft { title: string; description?: string; tags?: string; items: DraftItem[]; }
 interface ShotImage { id: number; name: string; preview: string; base64: string; mime: string; }
 
 /** Longest side of a screenshot sent to AI; keeps 10 shots well under Gemini's inline request limit. */
@@ -103,6 +103,8 @@ const MAX_SHOT_SIDE = 2000;
           @if (draft()!.description !== undefined) {
             <input [value]="draft()!.description || ''" (input)="draft()!.description = $any($event.target).value" [placeholder]="i18n.t().descPlaceholder" />
           }
+
+          <input [value]="draft()!.tags || ''" (input)="draft()!.tags = $any($event.target).value" [placeholder]="i18n.t().tagsPlaceholder" />
 
           @for (it of draft()!.items; track $index; let i = $index) {
             <div class="ditem">

@@ -126,8 +126,10 @@ export async function initDb() {
         deleted_at TEXT,
         created_at TEXT NOT NULL DEFAULT (TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS')),
         kind TEXT NOT NULL DEFAULT 'task',
-        due_at TEXT
+        due_at TEXT,
+        tags TEXT NOT NULL DEFAULT ''
       );
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS tags TEXT NOT NULL DEFAULT '';
       CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id);
       CREATE TABLE IF NOT EXISTS images (
         id TEXT PRIMARY KEY,
@@ -189,7 +191,8 @@ export async function initDb() {
       deleted_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       kind TEXT NOT NULL DEFAULT 'task',
-      due_at TEXT
+      due_at TEXT,
+      tags TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id);
     CREATE TABLE IF NOT EXISTS images (
@@ -211,6 +214,7 @@ export async function initDb() {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+  try { sqliteDb.exec("ALTER TABLE tasks ADD COLUMN tags TEXT NOT NULL DEFAULT ''"); } catch {}
 
   const stCount = sqliteDb.prepare('SELECT COUNT(*) c FROM statuses').get().c;
   if (stCount === 0) {

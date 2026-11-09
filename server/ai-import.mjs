@@ -162,15 +162,15 @@ export function registerImport({ route, send, readBody, readJson, q, tx, nextPos
 
   route('POST', '/api/import/create', async (req, res) => {
     requireAdminFn(req);
-    const { title = '', description = '', items = [], targetKind = 'book' } = await readJson(req);
+    const { title = '', description = '', items = [], targetKind = 'book', tags = '' } = await readJson(req);
     if (!title.trim()) return send(res, 400, { error: 'title required' });
     const k = targetKind === 'task' ? 'task' : 'book';
     const st = await q('SELECT id FROM statuses ORDER BY pos LIMIT 1').get();
     const id = await tx(async () => {
       const rootId = randomUUID();
       const pos = await nextPos('tasks', 'parent_id IS NULL AND kind=?', k);
-      await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind) VALUES (?,?,?,?,?,?,?)').run(
-        rootId, null, title.trim(), String(description ?? '').trim(), st.id, pos, k,
+      await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind,tags) VALUES (?,?,?,?,?,?,?,?)').run(
+        rootId, null, title.trim(), String(description ?? '').trim(), st.id, pos, k, String(tags ?? '').trim(),
       );
       const add = async (list, parent) => {
         for (let i = 0; i < (list || []).length; i++) {

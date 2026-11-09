@@ -86,6 +86,148 @@ button.danger:hover:not(:disabled) { color: var(--danger); border-color: var(--d
   background: #fff;
 }
 
+/* Book Search, Filters & Tags */
+.book-filters {
+  background: #fff;
+  border: 1px solid var(--line);
+  padding: 8px 10px;
+  margin: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.search-box input {
+  width: 100%;
+  padding-right: 26px;
+  font-size: 13px;
+}
+.search-box .clear-btn {
+  position: absolute;
+  right: 4px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+.search-box .clear-btn:hover {
+  color: var(--danger);
+}
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.tag-chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fafaf7;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.tag-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tag-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.filter-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--line);
+  font-size: 12px;
+}
+.filter-status .hint { margin: 0; }
+.clear-filter-btn {
+  font-size: 11px;
+  padding: 1px 6px;
+  color: var(--danger);
+  border: 1px solid #f5c2c7;
+  background: #fff8f8;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.clear-filter-btn:hover {
+  background: var(--danger);
+  color: #fff;
+}
+.tags-in {
+  flex: 0 1 150px;
+  font-size: 12px;
+}
+.tags-input-field {
+  width: 100%;
+  font-size: 13px;
+  margin: 4px 0 8px;
+}
+.tags-view {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 4px 0 8px;
+}
+.tags-view .tag-pill {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #f0f7ff;
+  border: 1px solid #cce3ff;
+  color: var(--accent);
+  cursor: pointer;
+}
+.tags-view .tag-pill:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Purgatory Panel */
+.purg-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--line);
+}
+.purg-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.purg-title {
+  font-weight: 600;
+  word-break: break-word;
+}
+.purg-tags {
+  font-size: 11px;
+  color: var(--accent);
+}
+.purg-foot {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
 .panel {
   border: 1px solid var(--line);
   background: #fff;

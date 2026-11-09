@@ -11,6 +11,7 @@
       </button>
       @if (store.isAdmin()) {
         <button [class.ok]="panel() === 'import'" (click)="toggle('import')">[{{ i18n.t().import }}]</button>
+        <button [class.ok]="panel() === 'purgatory'" (click)="toggle('purgatory')" [title]="i18n.t().purgatoryDesc">[{{ i18n.t().purgatory }}{{ store.purgatory().length ? ':' + store.purgatory().length : '' }}]</button>
         <button [class.ok]="panel() === 'trash'" (click)="toggle('trash')">[{{ i18n.t().trash }}{{ store.trash().length ? ':' + store.trash().length : '' }}]</button>
         <button [class.ok]="panel() === 'statuses'" (click)="toggle('statuses')">[{{ i18n.t().statuses }}]</button>
       }
@@ -43,6 +44,12 @@
           <div class="mobile-nav-label">{{ i18n.t().toolsSection }}</div>
           <button class="mobile-nav-item" [class.ok]="panel() === 'import'" (click)="toggleMobile('import')">
             <span class="m-title">[{{ i18n.t().import }}] {{ i18n.t().importDesc }}</span>
+          </button>
+          <button class="mobile-nav-item" [class.ok]="panel() === 'purgatory'" (click)="toggleMobile('purgatory')">
+            <span class="m-title">[{{ i18n.t().purgatory }}] {{ i18n.t().purgatoryDesc }}</span>
+            @if (store.purgatory().length) {
+              <span class="m-badge">{{ store.purgatory().length }}</span>
+            }
           </button>
           <button class="mobile-nav-item" [class.ok]="panel() === 'statuses'" (click)="toggleMobile('statuses')">
             <span class="m-title">[{{ i18n.t().statuses }}] {{ i18n.t().statusesDesc }}</span>
@@ -113,6 +120,31 @@
     </section>
   }
 
+  @if (panel() === 'purgatory' && store.isAdmin()) {
+    <section class="panel">
+      <h2>{{ i18n.t().purgatoryHeading }}</h2>
+      <p class="hint">{{ i18n.t().purgatoryHint }}</p>
+      @for (t of store.purgatory(); track t.id) {
+        <div class="srow purg-row">
+          <div class="purg-info grow">
+            <span class="purg-title">{{ t.title }}</span>
+            @if (t.tags) {
+              <span class="purg-tags">#{{ t.tags }}</span>
+            }
+            <span class="hint">{{ t.deletedAt }}</span>
+          </div>
+          <button class="ok" (click)="store.restoreTask(t.id)">{{ i18n.t().restoreToBooksBtn }}</button>
+          <button class="danger" (click)="purgeBook(t.id, t.title)">{{ i18n.t().purgeBookBtn }}</button>
+        </div>
+      } @empty {
+        <p class="hint">{{ i18n.t().purgatoryEmpty }}</p>
+      }
+      @if (store.purgatory().length) {
+        <button class="danger" (click)="emptyPurgatory()">{{ i18n.t().emptyPurgatoryBtn }}</button>
+      }
+    </section>
+  }
+
   @if (store.open(); as t) {
     <!-- ===== task detail ===== -->
     <nav class="crumbs">
@@ -141,6 +173,11 @@
             <button class="ok clone-btn-detail" (click)="cloneBookToTasks(t.id)" [title]="i18n.t().cloneBookToTasks">
               + [{{ i18n.t().cloneBookToTasks }}]
             </button>
+            @if (store.isAdmin()) {
+              <button class="danger" (click)="store.removeTask(t.id)" [title]="i18n.t().moveToPurgatoryBtn">
+                [✕ {{ i18n.t().moveToPurgatoryBtn }}]
+              </button>
+            }
           } @else if (t.parentId === null && store.isAdmin()) {
             <button (click)="toggleKind(t.id, t.kind)" [title]="'move to ' + i18n.t().books">
               [-&gt; {{ i18n.t().books }}]
@@ -175,6 +212,24 @@
         <textarea #dd rows="6" autofocus [placeholder]="i18n.t().descPlaceholder" [value]="t.description"></textarea>
       } @else {
         <p class="desc">{{ t.description || i18n.t().emptyDesc }}</p>
+      }
+
+      <h2>{{ i18n.t().tagsHeading }}
+        @if (store.isAdmin()) {
+          @if (editTags()) { <button class="ok" (click)="saveTags(t.id, tagsInput()?.nativeElement?.value ?? t.tags)">{{ i18n.t().ok }}</button> }
+          @else { <button (click)="editTags.set(true)">{{ i18n.t().edit }}</button> }
+        }
+      </h2>
+      @if (editTags() && store.isAdmin()) {
+        <input #tagsBox class="tags-input-field" [value]="t.tags || ''" [placeholder]="i18n.t().tagsPlaceholder" autofocus (keydown.enter)="saveTags(t.id, tagsBox.value)" />
+      } @else {
+        <div class="tags-view">
+          @for (tg of parseTags(t.tags); track tg) {
+            <span class="tag-pill" (click)="filterByTag(tg)" [title]="'filter by #' + tg">#{{ tg }}</span>
+          } @empty {
+            <span class="hint">{{ i18n.t().noTags }}</span>
+          }
+        </div>
       }
 
       <h2>{{ i18n.t().deadlineHeading }}</h2>
@@ -243,16 +298,58 @@
       }
     </section>
   } @else {
-    @if (tab() !== 'book' || store.isAdmin()) {
-      <form class="add new-row" (submit)="$event.preventDefault(); store.addTask(null, t.value, tab(), tDue.value || null); t.value = ''; tDue.value = ''">
-        <input #t class="grow" [placeholder]="tab() === 'book' ? i18n.t().newBookPlaceholder : i18n.t().newTaskPlaceholder" />
+    @if (tab() === 'book') {
+      <div class="book-filters">
+        <div class="search-box">
+          <input [value]="store.bookSearch()" (input)="store.bookSearch.set($any($event.target).value)"
+            [placeholder]="i18n.t().searchBooksPlaceholder" />
+          @if (store.bookSearch()) {
+            <button class="clear-btn" (click)="store.bookSearch.set('')">✕</button>
+          }
+        </div>
+
+        @if (store.allBookTags().length) {
+          <div class="tag-chips">
+            <button class="tag-chip" [class.active]="store.selectedTag() === null" (click)="store.selectedTag.set(null)">
+              {{ i18n.t().allTags }}
+            </button>
+            @for (tag of store.allBookTags(); track tag) {
+              <button class="tag-chip" [class.active]="store.selectedTag() === tag"
+                (click)="store.selectedTag.set(store.selectedTag() === tag ? null : tag)">
+                #{{ tag }}
+              </button>
+            }
+          </div>
+        }
+
+        @if (store.bookSearch() || store.selectedTag()) {
+          <div class="filter-status">
+            <span class="hint">{{ i18n.t().foundBooksCount(store.filteredBooks().length) }}</span>
+            <button class="clear-filter-btn" (click)="store.bookSearch.set(''); store.selectedTag.set(null)">
+              ✕ {{ i18n.t().clearFilter }}
+            </button>
+          </div>
+        }
+      </div>
+
+      @if (store.isAdmin()) {
+        <form class="add new-row" (submit)="$event.preventDefault(); store.addTask(null, bTitle.value, 'book', bDue.value || null, bTags.value); bTitle.value = ''; bDue.value = ''; bTags.value = ''">
+          <input #bTitle class="grow" [placeholder]="i18n.t().newBookPlaceholder" />
+          <input #bTags class="tags-in" [placeholder]="i18n.t().newBookTagsPlaceholder" />
+          <input #bDue type="datetime-local" class="due-pick" [title]="i18n.t().deadlineTitle" />
+          <button type="submit" class="ok">{{ i18n.t().addBtn }}</button>
+        </form>
+      } @else {
+        <div class="glossary-banner">
+          <span class="hint">{{ i18n.t().booksGlossaryHint }}</span>
+        </div>
+      }
+    } @else {
+      <form class="add new-row" (submit)="$event.preventDefault(); store.addTask(null, t.value, 'task', tDue.value || null); t.value = ''; tDue.value = ''">
+        <input #t class="grow" [placeholder]="i18n.t().newTaskPlaceholder" />
         <input #tDue type="datetime-local" class="due-pick" [title]="i18n.t().deadlineTitle" />
         <button type="submit" class="ok">{{ i18n.t().addBtn }}</button>
       </form>
-    } @else {
-      <div class="glossary-banner">
-        <span class="hint">{{ i18n.t().booksGlossaryHint }}</span>
-      </div>
     }
 
     @if (store.draggedId() && (tab() !== 'book' || store.isAdmin())) {

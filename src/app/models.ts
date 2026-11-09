@@ -22,6 +22,7 @@ export interface TaskRow {
   kind: 'task' | 'book';
   /** Optional deadline (ISO datetime string YYYY-MM-DDTHH:mm) */
   dueAt: string | null;
+  tags: string;
   imageIds: string[];
 }
 

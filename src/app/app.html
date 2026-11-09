@@ -4,7 +4,6 @@
       <h1 (click)="store.openId.set(null); panel.set('none'); closeMenu()" style="cursor:pointer">&gt; tasker<span class="cursor">_</span></h1>
       <button class="brand-tab" [class.ok]="tab() === 'task' && !store.open() && panel() === 'none'" (click)="switchTab('task')" [title]="i18n.t().tasksDesc">[{{ i18n.t().tasks }}:{{ store.tree().length }}]</button>
       <button class="brand-tab" [class.ok]="tab() === 'book' && !store.open() && panel() === 'none'" (click)="switchTab('book')" [title]="i18n.t().booksDesc">[{{ i18n.t().books }}:{{ store.books().length }}]</button>
-      <button class="brand-tab" [class.ok]="panel() === 'library'" (click)="toggle('library')" [title]="i18n.t().libraryDesc">[{{ i18n.t().library }}{{ store.library().length ? ':' + store.library().length : '' }}]</button>
     </div>
     <div class="nav-btns">
       <button [class.ok]="store.isAdmin()" (click)="toggleRole()" [title]="store.isAdmin() ? i18n.t().roleSwitchToUser : i18n.t().roleSwitchToAdmin">
@@ -36,13 +35,6 @@
         <button class="mobile-nav-item" [class.ok]="tab() === 'book' && !store.open() && panel() === 'none'" (click)="switchTabMobile('book')">
           <span class="m-title">[{{ i18n.t().books }}]</span>
           <span class="m-badge">{{ store.books().length }}</span>
-        </button>
-        <button class="mobile-nav-item" [class.ok]="panel() === 'library'" (click)="toggleMobile('library')">
-          <span class="m-title">[{{ i18n.t().library }}]</span>
-          <span class="m-hint">{{ i18n.t().libraryDesc }}</span>
-          @if (store.library().length) {
-            <span class="m-badge">{{ store.library().length }}</span>
-          }
         </button>
       </div>
 
@@ -80,8 +72,7 @@
 
   @if (store.error()) { <p class="err">! {{ store.error() }}</p> }
 
-  @if (panel() === 'library') { <app-library (closed)="panel.set('none')" (cloned)="onLibraryCloned($event)" /> }
-  @if (panel() === 'import' && store.isAdmin()) { <app-import (closed)="panel.set('none')" (savedToLibrary)="panel.set('library')" /> }
+  @if (panel() === 'import' && store.isAdmin()) { <app-import (closed)="panel.set('none')" /> }
 
   @if (panel() === 'statuses' && store.isAdmin()) {
     <section class="panel">
@@ -154,9 +145,6 @@
             <button (click)="toggleKind(t.id, t.kind)" [title]="'move to ' + i18n.t().books">
               [-&gt; {{ i18n.t().books }}]
             </button>
-          }
-          @if (store.isAdmin()) {
-            <button (click)="saveToLibrary(t.id)" [title]="'save to library'">[-&gt; {{ i18n.t().library }}]</button>
           }
         </div>
         <div class="drow-status">

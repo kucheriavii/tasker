@@ -1,7 +1,6 @@
 import { Component, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { TaskItem } from './task-item';
 import { ImportPanel } from './import-panel';
-import { LibraryPanel } from './library-panel';
 import { PopupModal, PopupService } from './popup';
 import { TaskStore } from './task-store';
 import { Progress } from './progress';
@@ -9,7 +8,7 @@ import { I18nService } from './i18n';
 
 @Component({
   selector: 'app-root',
-  imports: [TaskItem, Progress, ImportPanel, LibraryPanel, PopupModal],
+  imports: [TaskItem, Progress, ImportPanel, PopupModal],
   templateUrl: './app.html',
   styleUrl: './app.css',
   host: { '(window:paste)': 'onPaste($event)' },
@@ -20,7 +19,7 @@ export class App {
   readonly i18n = inject(I18nService);
   /** Active top-level tab: 'task' = short-term tasks, 'book' = long-term books/courses. */
   readonly tab = signal<'task' | 'book'>('task');
-  readonly panel = signal<'none' | 'statuses' | 'trash' | 'import' | 'library'>('none');
+  readonly panel = signal<'none' | 'statuses' | 'trash' | 'import'>('none');
   readonly menuOpen = signal(false);
   readonly dragging = signal(false);
   readonly rootDrop = signal(false);
@@ -48,12 +47,6 @@ export class App {
     this.store.openId.set(null);
   }
 
-  onLibraryCloned(e: { id: string; targetKind: 'task' | 'book' }) {
-    this.tab.set(e.targetKind);
-    this.panel.set('none');
-    this.store.openId.set(e.id);
-  }
-
   toggleMenu() {
     this.menuOpen.update((v) => !v);
   }
@@ -67,7 +60,7 @@ export class App {
     this.closeMenu();
   }
 
-  toggleMobile(p: 'statuses' | 'trash' | 'import' | 'library') {
+  toggleMobile(p: 'statuses' | 'trash' | 'import') {
     this.toggle(p);
     this.closeMenu();
   }
@@ -143,16 +136,6 @@ export class App {
     return iso.replace('T', ' ').slice(0, 16);
   }
 
-  async saveToLibrary(id: string) {
-    if (!this.store.isAdmin()) return;
-    try {
-      await this.store.saveTaskToLibrary(id, 'book');
-      this.panel.set('library');
-    } catch (e: any) {
-      await this.popup.alert(e?.error?.error || 'Could not save to library', 'library');
-    }
-  }
-
   async cloneBookToTasks(id: string) {
     const rootId = this.store.breadcrumbs()[0]?.id ?? id;
     try {
@@ -184,7 +167,7 @@ export class App {
     this.store.moveTask(dragged, null, 'after', this.tab());
   }
 
-  toggle(p: 'statuses' | 'trash' | 'import' | 'library') {
+  toggle(p: 'statuses' | 'trash' | 'import') {
     this.panel.set(this.panel() === p ? 'none' : p);
   }
 

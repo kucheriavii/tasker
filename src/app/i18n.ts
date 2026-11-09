@@ -44,7 +44,7 @@ export const DICT = {
     booksHeading: 'книги та курси',
     booksGlossaryHint: 'глосарій книг та курсів. оберіть потрібний та додайте собі в завдання.',
     noTasksYet: 'завдань ще немає. додайте перше вище.',
-    noBooksYet: 'книг та курсів ще немає. оберіть курс у [бібліотеці] або додайте назву вище.',
+    noBooksYet: 'книг та курсів ще немає. додайте першу назву вище.',
 
     // Detail view
     rootTasks: '~ завдання',
@@ -187,7 +187,7 @@ export const DICT = {
     booksHeading: 'books & courses',
     booksGlossaryHint: 'glossary of books and courses. choose one and add to your tasks.',
     noTasksYet: 'no short-term tasks yet. add one above.',
-    noBooksYet: 'no books or courses yet. choose a course from the [library] or type above.',
+    noBooksYet: 'no books or courses yet. add one above.',
 
     // Detail view
     rootTasks: '~ tasks',

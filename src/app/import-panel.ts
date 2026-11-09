@@ -86,7 +86,7 @@ const MAX_SHOT_SIDE = 2000;
       } @else {
         <div class="draft-box">
           <div class="draft-head">
-            <span class="hint">{{ i18n.lang() === 'uk' ? 'чернетка (' + count() + ' підзавдань) — збережіть у бібліотеку, курси або завдання:' : 'draft (' + count() + ' subtasks) — save to library, courses, or tasks:' }}</span>
+            <span class="hint">{{ i18n.lang() === 'uk' ? 'чернетка (' + count() + ' підзавдань) — збережіть у курси або завдання:' : 'draft (' + count() + ' subtasks) — save to courses or tasks:' }}</span>
             <button class="danger" [disabled]="busy()" (click)="confirmDiscardDraft()">[{{ i18n.lang() === 'uk' ? 'видалити чернетку' : 'delete draft' }}]</button>
           </div>
 
@@ -126,7 +126,6 @@ const MAX_SHOT_SIDE = 2000;
           @if (error()) { <p class="err">! {{ error() }}</p> }
 
           <div class="actions">
-            <button class="ok" [disabled]="busy()" (click)="sendToLibrary()">{{ i18n.t().sendToLibraryBtn }}</button>
             <button class="ok" [disabled]="busy()" (click)="createIn('book')">{{ i18n.t().sendToBooksBtn }} ({{ count() }})</button>
             <button class="ok" [disabled]="busy()" (click)="createIn('task')">{{ i18n.t().sendToTasksBtn }} ({{ count() }})</button>
             <button class="danger" [disabled]="busy()" (click)="confirmDiscardDraft()">{{ i18n.lang() === 'uk' ? 'видалити чернетку' : 'delete draft' }}</button>

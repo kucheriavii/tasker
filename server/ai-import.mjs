@@ -68,19 +68,32 @@ const PLAN_SCHEMA = {
   required: ['title', 'items'],
 };
 
-async function generatePlan({ text, imageBase64, imageMime }) {
+const MAX_IMAGES = 10;
+
+async function generatePlan({ text, images = [] }) {
   loadEnvIfNeeded();
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw fail('GEMINI_API_KEY is not set. Put it into .env (see .env.example) and restart the server.', 400);
+  const multi = images.length > 1;
   const parts = [{
     text: 'You turn a table of contents / course curriculum or course URL into a structured study plan with sections and lessons. ' +
       'Return JSON: "title" = name of the book or course; "items" = top-level chapters or sections in original order, ' +
       'each with optional "children" = its lessons/subchapters (only if available). ' +
       'Keep the original language of the course / title. Do not invent unrelated items; skip durations and prices; ' +
-      'no numbering prefix unless it is part of the title.',
+      'no numbering prefix unless it is part of the title.' +
+      (multi
+        ? `\n\nYou get ${images.length} screenshots of ONE table of contents / curriculum. They may be uploaded in RANDOM order. ` +
+          'Determine the correct reading order from the content itself: chapter/section/lesson numbers, page numbers, ' +
+          'alphabetical/logical continuity, a section that continues from the previous screenshot, headings vs. continuation. ' +
+          'Merge them into one continuous plan in that correct order. Screenshots may overlap: remove duplicated items. ' +
+          'If a section starts on one screenshot and its lessons continue on another, keep them under the same section.'
+        : ''),
   }];
   if (text) parts.push({ text: 'SOURCE:\n' + text });
-  if (imageBase64) parts.push({ inline_data: { mime_type: imageMime || 'image/png', data: imageBase64 } });
+  images.forEach((img, i) => {
+    if (multi) parts.push({ text: `Screenshot #${i + 1} (upload order, not necessarily reading order):` });
+    parts.push({ inline_data: { mime_type: img.mime || 'image/png', data: img.base64 } });
+  });
   const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST',
@@ -91,10 +104,11 @@ async function generatePlan({ text, imageBase64, imageMime }) {
         responseMimeType: 'application/json',
         responseSchema: PLAN_SCHEMA,
         temperature: 0.2,
-        thinkingConfig: { thinkingBudget: 0 },
+        // ordering several screenshots needs a bit of reasoning; single image stays fast
+        thinkingConfig: { thinkingBudget: multi ? 2048 : 0 },
       },
     }),
-    signal: AbortSignal.timeout(90000),
+    signal: AbortSignal.timeout(multi ? 180000 : 90000),
   });
   if (!r.ok) throw fail(`Gemini error ${r.status}: ${(await r.text()).slice(0, 300)}`, 502);
   const j = await r.json();
@@ -135,8 +149,15 @@ export function registerImport({ route, send, readBody, readJson, q, tx, nextPos
       }
     }
 
-    if (!text && !b.imageBase64) return send(res, 400, { error: 'Provide a link, text or a screenshot.' });
-    send(res, 200, await generatePlan({ text, imageBase64: b.imageBase64, imageMime: b.imageMime }));
+    if (!text && !b.imageBase64 && !(Array.isArray(b.images) && b.images.length)) {
+      return send(res, 400, { error: 'Provide a link, text or a screenshot.' });
+    }
+    const images = (Array.isArray(b.images) ? b.images : [])
+      .filter((im) => im && typeof im.base64 === 'string' && im.base64)
+      .map((im) => ({ base64: im.base64, mime: String(im.mime || 'image/png') }));
+    if (b.imageBase64) images.unshift({ base64: b.imageBase64, mime: b.imageMime || 'image/png' }); // legacy single image
+    if (images.length > MAX_IMAGES) return send(res, 400, { error: `Max ${MAX_IMAGES} screenshots at once.` });
+    send(res, 200, await generatePlan({ text, images }));
   });
 
   route('POST', '/api/import/create', async (req, res) => {

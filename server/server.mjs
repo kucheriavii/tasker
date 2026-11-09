@@ -274,7 +274,7 @@ route('DELETE', '/api/statuses/:id', async (req, res, { id }) => {
   send(res, 204);
 });
 
-registerImport({ route, send, readBody, readJson, q, tx, nextPos, maxBody: MAX_IMAGE * 2, requireAdmin });
+registerImport({ route, send, readBody, readJson, q, tx, nextPos, maxBody: MAX_IMAGE * 4, requireAdmin });
 registerFeatures({ route, send, readJson, q, tx, nextPos, descendants, requireAdmin });
 
 // Static file serving for production (Single Page Application fallback to index.html)

@@ -9,6 +9,10 @@ import { I18nService } from './i18n';
 interface DraftChild { title: string; description?: string; }
 interface DraftItem { title: string; description?: string; children: DraftChild[]; }
 interface Draft { title: string; description?: string; items: DraftItem[]; }
+interface ShotImage { id: number; name: string; preview: string; base64: string; mime: string; }
+
+/** Longest side of a screenshot sent to AI; keeps 10 shots well under Gemini's inline request limit. */
+const MAX_SHOT_SIDE = 2000;
 
 /**
  * Unified [import] panel:
@@ -53,13 +57,25 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
           <textarea rows="5" [value]="text()" (input)="onText($any($event.target).value)" [placeholder]="i18n.lang() === 'uk' ? '...або вставте сюди зміст книги, список тем, розділів чи завдань' : '...or paste table of contents / list here'"></textarea>
 
           <div class="shot" (dragover)="$event.preventDefault()" (drop)="onDrop($event)">
-            @if (preview()) {
-              <img [src]="preview()" alt="" /> <button (click)="confirmClearImage()">{{ i18n.lang() === 'uk' ? 'видалити' : 'remove' }}</button>
-            } @else {
-              <span class="hint">{{ i18n.lang() === 'uk' ? 'скріншот: перетягніть сюди, Ctrl+V, або' : 'screenshot: drop here, Ctrl+V, or' }}</span>
-              <button (click)="f.click()">[{{ i18n.lang() === 'uk' ? 'обрати файл' : 'pick file' }}]</button>
+            @for (img of images(); track img.id; let i = $index) {
+              <div class="thumb">
+                <img [src]="img.preview" [alt]="img.name" />
+                <span class="num">{{ i + 1 }}</span>
+                <button class="rm" (click)="removeImage(i)" [title]="i18n.lang() === 'uk' ? 'видалити' : 'remove'">x</button>
+              </div>
             }
-            <input #f type="file" accept="image/*" hidden (change)="onPick(f)" />
+            @if (images().length < maxImages) {
+              <span class="hint">{{ i18n.lang() === 'uk'
+                ? 'скріншоти (до ' + maxImages + ', порядок неважливий — ші визначить сам): перетягніть сюди, Ctrl+V, або'
+                : 'screenshots (up to ' + maxImages + ', any order — AI figures out the sequence): drop here, Ctrl+V, or' }}</span>
+              <button (click)="f.click()">[{{ i18n.lang() === 'uk' ? 'обрати файли' : 'pick files' }}]</button>
+            } @else {
+              <span class="hint">{{ i18n.lang() === 'uk' ? 'досягнуто ліміт ' + maxImages + ' скріншотів' : 'limit of ' + maxImages + ' screenshots reached' }}</span>
+            }
+            @if (images().length > 1) {
+              <button (click)="confirmClearImages()">[{{ i18n.lang() === 'uk' ? 'очистити всі' : 'clear all' }}]</button>
+            }
+            <input #f type="file" accept="image/*" multiple hidden (change)="onPick(f)" />
           </div>
 
           @if (error()) { <p class="err">! {{ error() }}</p> }
@@ -126,6 +142,10 @@ interface Draft { title: string; description?: string; items: DraftItem[]; }
     textarea { font: inherit; border: 1px solid var(--line); padding: 8px; background: var(--bg); }
     .shot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border: 1px dashed var(--line); padding: 8px; margin: 6px 0 10px; }
     .shot img { max-width: 160px; max-height: 120px; }
+    .thumb { position: relative; display: inline-block; border: 1px solid var(--line); background: var(--bg); }
+    .thumb img { display: block; width: 96px; height: 72px; object-fit: cover; max-width: none; max-height: none; }
+    .thumb .num { position: absolute; left: 2px; top: 2px; background: #fff; border: 1px solid var(--line); font-size: 11px; padding: 0 4px; }
+    .thumb .rm { position: absolute; right: 2px; top: 2px; min-width: 20px; height: 20px; min-height: 20px; padding: 0 4px; font-size: 11px; background: #fff; }
     .draft-box { border-top: 1px dashed var(--line); padding-top: 8px; }
     .draft-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
     .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
@@ -162,8 +182,9 @@ export class ImportPanel {
   readonly url = signal('');
   readonly text = signal('');
   readonly kind = signal<LibraryItem['kind']>('book');
-  readonly preview = signal<string | null>(null);
-  private image: { base64: string; mime: string } | null = null;
+  readonly maxImages = 10;
+  readonly images = signal<ShotImage[]>([]);
+  private shotSeq = 0;
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
   readonly draft = signal<Draft | null>(null);
@@ -197,32 +218,77 @@ export class ImportPanel {
 
   onPaste(e: ClipboardEvent) {
     if (this.draft() || this.tab() === 'ai') return;
-    const f = Array.from(e.clipboardData?.files ?? []).find((x) => x.type.startsWith('image/'));
-    if (f) { e.preventDefault(); this.setImage(f); }
+    const files = Array.from(e.clipboardData?.files ?? []).filter((x) => x.type.startsWith('image/'));
+    if (files.length) { e.preventDefault(); this.addImages(files); }
   }
   onDrop(e: DragEvent) {
     e.preventDefault();
-    const f = Array.from(e.dataTransfer?.files ?? []).find((x) => x.type.startsWith('image/'));
-    if (f) this.setImage(f);
+    this.addImages(Array.from(e.dataTransfer?.files ?? []));
   }
   onPick(input: HTMLInputElement) {
-    if (input.files?.[0]) this.setImage(input.files[0]);
+    this.addImages(Array.from(input.files ?? []));
     input.value = '';
   }
-  private setImage(file: File) {
-    const r = new FileReader();
-    r.onload = () => {
-      const dataUrl = String(r.result);
-      this.preview.set(dataUrl);
-      this.image = { base64: dataUrl.split(',')[1], mime: file.type };
-    };
-    r.readAsDataURL(file);
+  private async addImages(files: File[]) {
+    const imgs = files.filter((x) => x.type.startsWith('image/'));
+    if (!imgs.length) return;
+    const free = this.maxImages - this.images().length;
+    if (imgs.length > free) {
+      this.error.set(this.i18n.lang() === 'uk'
+        ? `Максимум ${this.maxImages} скріншотів. Додано лише ${Math.max(free, 0)}.`
+        : `Max ${this.maxImages} screenshots. Only ${Math.max(free, 0)} added.`);
+    } else {
+      this.error.set(null);
+    }
+    for (const file of imgs.slice(0, Math.max(free, 0))) {
+      try {
+        const shot = await this.readShot(file);
+        if (this.images().length >= this.maxImages) break;
+        this.images.update((list) => [...list, shot]);
+      } catch {
+        this.error.set(`Could not read ${file.name}`);
+      }
+    }
   }
-  clearImage() { this.preview.set(null); this.image = null; }
+  /** Reads an image and downscales it (if large) to JPEG to keep the request small. */
+  private readShot(file: File): Promise<ShotImage> {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onerror = () => reject(r.error);
+      r.onload = () => {
+        const dataUrl = String(r.result);
+        const img = new Image();
+        img.onerror = () => reject(new Error('bad image'));
+        img.onload = () => {
+          const scale = Math.min(1, MAX_SHOT_SIDE / Math.max(img.width, img.height));
+          let out = dataUrl;
+          let mime = file.type;
+          if (scale < 1 || file.size > 1.5 * 1024 * 1024) {
+            const c = document.createElement('canvas');
+            c.width = Math.round(img.width * scale);
+            c.height = Math.round(img.height * scale);
+            const ctx = c.getContext('2d')!;
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, c.width, c.height);
+            ctx.drawImage(img, 0, 0, c.width, c.height);
+            out = c.toDataURL('image/jpeg', 0.88);
+            mime = 'image/jpeg';
+          }
+          resolve({ id: ++this.shotSeq, name: file.name, preview: out, base64: out.split(',')[1], mime });
+        };
+        img.src = dataUrl;
+      };
+      r.readAsDataURL(file);
+    });
+  }
+  removeImage(i: number) {
+    this.images.update((list) => list.filter((_, idx) => idx !== i));
+  }
+  clearImages() { this.images.set([]); }
 
-  async confirmClearImage() {
-    if (await this.popup.confirm('Delete this screenshot?', 'delete screenshot')) {
-      this.clearImage();
+  async confirmClearImages() {
+    if (await this.popup.confirm(this.i18n.lang() === 'uk' ? 'Видалити всі скріншоти?' : 'Delete all screenshots?', 'delete screenshots')) {
+      this.clearImages();
     }
   }
 
@@ -234,7 +300,7 @@ export class ImportPanel {
     this.text.set('');
     this.topic.set('');
     this.details.set('');
-    this.clearImage();
+    this.clearImages();
   }
 
   async confirmDiscardDraft() {
@@ -270,7 +336,7 @@ export class ImportPanel {
     try {
       const d = await firstValueFrom(this.http.post<Draft>('/api/import/plan', {
         url: this.url(), text: this.text(),
-        imageBase64: this.image?.base64, imageMime: this.image?.mime,
+        images: this.images().map((im) => ({ base64: im.base64, mime: im.mime })),
       }));
       d.items = (d.items ?? []).map((i) => ({ title: i.title, description: i.description, children: i.children ?? [] }));
       this.draft.set(d);

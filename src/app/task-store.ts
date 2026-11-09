@@ -41,8 +41,8 @@ export class TaskStore {
       const k = r.parentId;
       (byParent.get(k) ?? byParent.set(k, []).get(k)!).push(r);
     }
-    const build = (r: TaskRow): Task => {
-      const children = (byParent.get(r.id) ?? []).map(build);
+    const build = (r: TaskRow, rootKind: 'task' | 'book'): Task => {
+      const children = (byParent.get(r.id) ?? []).map((c) => build(c, rootKind));
       let leafTotal = 0, leafDone = 0;
       if (children.length) {
         for (const c of children) { leafTotal += c.leafTotal; leafDone += c.leafDone; }
@@ -51,9 +51,9 @@ export class TaskStore {
         leafTotal = skip ? 0 : 1;
         leafDone = !skip && done.has(r.statusId) ? 1 : 0;
       }
-      return { ...r, children, leafTotal, leafDone, progress: leafTotal ? leafDone / leafTotal : 0 };
+      return { ...r, rootKind, children, leafTotal, leafDone, progress: leafTotal ? leafDone / leafTotal : 0 };
     };
-    return (byParent.get(null) ?? []).map(build);
+    return (byParent.get(null) ?? []).map((r) => build(r, r.kind === 'book' ? 'book' : 'task'));
   });
 
   /** Short-term tasks ([tasks] tab). */
@@ -149,30 +149,37 @@ export class TaskStore {
 
   addTask(parentId: string | null, title: string, kind: 'task' | 'book' = 'task', dueAt: string | null = null) {
     if (!title.trim()) return;
-    return this.call(firstValueFrom(this.http.post('/api/tasks', { parentId, title, kind, dueAt: dueAt || null })));
+    return this.call(firstValueFrom(this.http.post('/api/tasks', { parentId, title, kind, dueAt: dueAt || null }, this.adminHeaders())));
   }
   updateTask(id: string, patch: Partial<Pick<Task, 'title' | 'description' | 'statusId' | 'collapsed' | 'kind' | 'dueAt'>>) {
-    return this.call(firstValueFrom(this.http.patch(`/api/tasks/${id}`, patch)));
+    return this.call(firstValueFrom(this.http.patch(`/api/tasks/${id}`, patch, this.adminHeaders())));
   }
   /** Drag & Drop: reorder before/after targetId, or move inside targetId as a subtask. */
   moveTask(id: string, targetId: string | null, mode: 'before' | 'after' | 'inside', rootKind?: 'task' | 'book') {
     if (!id || id === targetId) return;
-    return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/move`, { targetId, mode, rootKind })));
+    return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/move`, { targetId, mode, rootKind }, this.adminHeaders())));
   }
   /** Moves task (with subtree) to trash. */
   removeTask(id: string) {
     if (this.openId() === id || this.breadcrumbs().some((b) => b.id === id)) {
       this.openId.set(this.index().get(id)?.parentId ?? null);
     }
-    return this.call(firstValueFrom(this.http.delete(`/api/tasks/${id}`)));
+    return this.call(firstValueFrom(this.http.delete(`/api/tasks/${id}`, this.adminHeaders())));
   }
   /** Sets every subtask (any depth) of a task to the given status. */
   setSubtasksStatus(id: string, statusId: string) {
-    return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/set-subtasks`, { statusId })));
+    return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/set-subtasks`, { statusId }, this.adminHeaders())));
   }
-  restoreTask(id: string) { return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/restore`, {}))); }
-  purgeTask(id: string) { return this.call(firstValueFrom(this.http.delete(`/api/trash/${id}`))); }
-  emptyTrash() { return this.call(firstValueFrom(this.http.delete('/api/trash'))); }
+  restoreTask(id: string) { return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/restore`, {}, this.adminHeaders()))); }
+  purgeTask(id: string) { return this.call(firstValueFrom(this.http.delete(`/api/trash/${id}`, this.adminHeaders()))); }
+  emptyTrash() { return this.call(firstValueFrom(this.http.delete('/api/trash', this.adminHeaders()))); }
+
+  /** Deep clones a book (or task tree) to tasks tab with fresh initial status. */
+  async cloneBookToTasks(bookId: string): Promise<string> {
+    const res = await firstValueFrom(this.http.post<{ id: string }>(`/api/tasks/${bookId}/clone-to-tasks`, {}));
+    await this.refresh();
+    return res.id;
+  }
 
   // ---- Library (shared repository of books, playlists, courses) ----
   async saveTaskToLibrary(taskId: string, kind: LibraryItem['kind'] = 'book', sourceUrl = '') {
@@ -202,23 +209,24 @@ export class TaskStore {
     for (const f of files) {
       if (!f.type.startsWith('image/')) continue;
       try {
-        await firstValueFrom(this.http.post(`/api/tasks/${taskId}/images?name=${encodeURIComponent(f.name)}`, f,
-          { headers: { 'Content-Type': f.type } }));
+        const headers: Record<string, string> = { 'Content-Type': f.type };
+        if (this.adminKey()) headers['x-admin-key'] = this.adminKey();
+        await firstValueFrom(this.http.post(`/api/tasks/${taskId}/images?name=${encodeURIComponent(f.name)}`, f, { headers }));
       } catch { this.error.set(`upload failed: ${f.name}`); }
     }
     await this.refresh();
   }
-  removeImage(id: string) { return this.call(firstValueFrom(this.http.delete(`/api/images/${id}`))); }
+  removeImage(id: string) { return this.call(firstValueFrom(this.http.delete(`/api/images/${id}`, this.adminHeaders()))); }
   imageUrl(id: string) { return `/api/images/${id}`; }
 
   // ---- statuses ----
   addStatus(name: string) {
     if (!name.trim()) return;
-    return this.call(firstValueFrom(this.http.post('/api/statuses', { name })));
+    return this.call(firstValueFrom(this.http.post('/api/statuses', { name }, this.adminHeaders())));
   }
   updateStatus(id: string, patch: Partial<Pick<Status, 'name' | 'done' | 'cancelled' | 'active'>>) {
-    return this.call(firstValueFrom(this.http.patch(`/api/statuses/${id}`, patch)));
+    return this.call(firstValueFrom(this.http.patch(`/api/statuses/${id}`, patch, this.adminHeaders())));
   }
-  moveStatus(id: string, dir: -1 | 1) { return this.call(firstValueFrom(this.http.post(`/api/statuses/${id}/move`, { dir }))); }
-  removeStatus(id: string) { return this.call(firstValueFrom(this.http.delete(`/api/statuses/${id}`))); }
+  moveStatus(id: string, dir: -1 | 1) { return this.call(firstValueFrom(this.http.post(`/api/statuses/${id}/move`, { dir }, this.adminHeaders()))); }
+  removeStatus(id: string) { return this.call(firstValueFrom(this.http.delete(`/api/statuses/${id}`, this.adminHeaders()))); }
 }

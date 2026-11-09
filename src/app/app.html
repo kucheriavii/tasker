@@ -135,18 +135,24 @@
       (dragover)="$event.preventDefault(); dragging.set(true)" (dragleave)="dragging.set(false)" (drop)="onDrop($event)">
       <div class="drow" [class.done]="store.isDone(t.statusId) || store.isCancelled(t.statusId)">
         <div class="drow-main">
-          @if (editTitle()) {
+          @if (editTitle() && (t.rootKind !== 'book' || store.isAdmin())) {
             <input #tt class="big" [value]="t.title" autofocus (keydown.enter)="saveTitle(t.id, t.title, tt.value)" />
             <button class="ok" (click)="saveTitle(t.id, t.title, tt.value)">{{ i18n.t().ok }}</button>
           } @else {
             <h1 class="big">{{ t.title }}</h1>
-            <button (click)="editTitle.set(true)">{{ i18n.t().edit }}</button>
+            @if (t.rootKind !== 'book' || store.isAdmin()) {
+              <button (click)="editTitle.set(true)">{{ i18n.t().edit }}</button>
+            }
           }
         </div>
         <div class="drow-actions">
-          @if (t.parentId === null) {
-            <button (click)="toggleKind(t.id, t.kind)" [title]="'move to ' + (t.kind === 'book' ? i18n.t().tasks : i18n.t().books)">
-              [-&gt; {{ t.kind === 'book' ? i18n.t().tasks : i18n.t().books }}]
+          @if (t.rootKind === 'book') {
+            <button class="ok clone-btn-detail" (click)="cloneBookToTasks(t.id)" [title]="i18n.t().cloneBookToTasks">
+              + [{{ i18n.t().cloneBookToTasks }}]
+            </button>
+          } @else if (t.parentId === null && store.isAdmin()) {
+            <button (click)="toggleKind(t.id, t.kind)" [title]="'move to ' + i18n.t().books">
+              [-&gt; {{ i18n.t().books }}]
             </button>
           }
           @if (store.isAdmin()) {
@@ -154,11 +160,15 @@
           }
         </div>
         <div class="drow-status">
-          <select [value]="t.statusId" (change)="store.updateTask(t.id, { statusId: $any($event.target).value })">
-            @for (s of store.statuses(); track s.id) {
-              <option [value]="s.id" [selected]="s.id === t.statusId">{{ s.name }}</option>
-            }
-          </select>
+          @if (t.rootKind !== 'book' || store.isAdmin()) {
+            <select [value]="t.statusId" (change)="store.updateTask(t.id, { statusId: $any($event.target).value })">
+              @for (s of store.statuses(); track s.id) {
+                <option [value]="s.id" [selected]="s.id === t.statusId">{{ s.name }}</option>
+              }
+            </select>
+          } @else {
+            <span class="badge status-pill">{{ getStatusName(t.statusId) }}</span>
+          }
         </div>
       </div>
 
@@ -168,8 +178,10 @@
       </div>
 
       <h2>{{ i18n.t().descHeading }}
-        @if (editDesc()) { <button class="ok" (click)="saveDescription(t.id, t.description, descBox()?.nativeElement?.value ?? t.description)">{{ i18n.t().ok }}</button> }
-        @else { <button (click)="editDesc.set(true)">{{ i18n.t().edit }}</button> }
+        @if (t.rootKind !== 'book' || store.isAdmin()) {
+          @if (editDesc()) { <button class="ok" (click)="saveDescription(t.id, t.description, descBox()?.nativeElement?.value ?? t.description)">{{ i18n.t().ok }}</button> }
+          @else { <button (click)="editDesc.set(true)">{{ i18n.t().edit }}</button> }
+        }
       </h2>
       @if (editDesc()) {
         <textarea #dd rows="6" autofocus [placeholder]="i18n.t().descPlaceholder" [value]="t.description"></textarea>
@@ -178,41 +190,49 @@
       }
 
       <h2>{{ i18n.t().deadlineHeading }}</h2>
-      <div class="srow deadline-row">
-        <input #dueIn type="datetime-local" [value]="t.dueAt || ''" (keydown.enter)="saveDue(t.id, dueIn.value)" />
-        <div class="srow-btns">
-          <button class="ok" (click)="saveDue(t.id, dueIn.value)">{{ i18n.t().ok }}</button>
+      @if (t.rootKind !== 'book' || store.isAdmin()) {
+        <div class="srow deadline-row">
+          <input #dueIn type="datetime-local" [value]="t.dueAt || ''" (keydown.enter)="saveDue(t.id, dueIn.value)" />
+          <div class="srow-btns">
+            <button class="ok" (click)="saveDue(t.id, dueIn.value)">{{ i18n.t().ok }}</button>
+            @if (t.dueAt) {
+              <button class="danger" (click)="clearDue(t.id)">{{ i18n.t().clear }}</button>
+            }
+          </div>
           @if (t.dueAt) {
-            <button class="danger" (click)="clearDue(t.id)">{{ i18n.t().clear }}</button>
+            <span class="hint">{{ i18n.t().setAt }} {{ formatDue(t.dueAt) }}</span>
+            @if (store.isOverdue(t)) {
+              <span class="due-badge overdue">{{ i18n.t().overdue }}</span>
+            }
+          } @else {
+            <span class="hint">{{ i18n.t().noDeadline }}</span>
           }
         </div>
-        @if (t.dueAt) {
-          <span class="hint">{{ i18n.t().setAt }} {{ formatDue(t.dueAt) }}</span>
-          @if (store.isOverdue(t)) {
-            <span class="due-badge overdue">{{ i18n.t().overdue }}</span>
-          }
-        } @else {
-          <span class="hint">{{ i18n.t().noDeadline }}</span>
-        }
-      </div>
+      } @else {
+        <p class="hint">{{ t.dueAt ? (i18n.t().setAt + ' ' + formatDue(t.dueAt)) : i18n.t().noDeadline }}</p>
+      }
 
       <h2>{{ i18n.t().imagesHeading }}</h2>
       <div class="imgs">
         @for (id of t.imageIds; track id) {
           <figure>
             <a [href]="store.imageUrl(id)" target="_blank"><img [src]="store.imageUrl(id)" alt="" loading="lazy" /></a>
-            <button class="danger" (click)="removeImage(id)">x</button>
+            @if (t.rootKind !== 'book' || store.isAdmin()) {
+              <button class="danger" (click)="removeImage(id)">x</button>
+            }
           </figure>
         }
       </div>
-      <p class="hint">
-        {{ i18n.t().dropImagesHint }}
-        <button (click)="f.click()">{{ i18n.t().addImageBtn }}</button>
-        <input #f type="file" accept="image/*" multiple hidden (change)="onFiles(f)" />
-      </p>
+      @if (t.rootKind !== 'book' || store.isAdmin()) {
+        <p class="hint">
+          {{ i18n.t().dropImagesHint }}
+          <button (click)="f.click()">{{ i18n.t().addImageBtn }}</button>
+          <input #f type="file" accept="image/*" multiple hidden (change)="onFiles(f)" />
+        </p>
+      }
 
       <h2>{{ i18n.t().subtasksHeading }}</h2>
-      @if (t.children.length) {
+      @if (t.children.length && (t.rootKind !== 'book' || store.isAdmin())) {
         <div class="reset">
           <span class="hint">{{ i18n.t().setAllSubtasksTo }}</span>
           <select #rs>
@@ -226,20 +246,28 @@
       } @empty {
         <p class="hint">{{ i18n.t().noSubtasks }}</p>
       }
-      <form class="add new-row" (submit)="$event.preventDefault(); store.addTask(t.id, sub.value, 'task', subDue.value || null); sub.value = ''; subDue.value = ''">
-        <input #sub class="grow" [placeholder]="i18n.t().newSubtaskPlaceholder" />
-        <input #subDue type="datetime-local" class="due-pick" [title]="i18n.t().deadlineTitle" />
-        <button type="submit" class="ok">{{ i18n.t().addBtn }}</button>
-      </form>
+      @if (t.rootKind !== 'book' || store.isAdmin()) {
+        <form class="add new-row" (submit)="$event.preventDefault(); store.addTask(t.id, sub.value, 'task', subDue.value || null); sub.value = ''; subDue.value = ''">
+          <input #sub class="grow" [placeholder]="i18n.t().newSubtaskPlaceholder" />
+          <input #subDue type="datetime-local" class="due-pick" [title]="i18n.t().deadlineTitle" />
+          <button type="submit" class="ok">{{ i18n.t().addBtn }}</button>
+        </form>
+      }
     </section>
   } @else {
-    <form class="add new-row" (submit)="$event.preventDefault(); store.addTask(null, t.value, tab(), tDue.value || null); t.value = ''; tDue.value = ''">
-      <input #t class="grow" [placeholder]="tab() === 'book' ? i18n.t().newBookPlaceholder : i18n.t().newTaskPlaceholder" />
-      <input #tDue type="datetime-local" class="due-pick" [title]="i18n.t().deadlineTitle" />
-      <button type="submit" class="ok">{{ i18n.t().addBtn }}</button>
-    </form>
+    @if (tab() !== 'book' || store.isAdmin()) {
+      <form class="add new-row" (submit)="$event.preventDefault(); store.addTask(null, t.value, tab(), tDue.value || null); t.value = ''; tDue.value = ''">
+        <input #t class="grow" [placeholder]="tab() === 'book' ? i18n.t().newBookPlaceholder : i18n.t().newTaskPlaceholder" />
+        <input #tDue type="datetime-local" class="due-pick" [title]="i18n.t().deadlineTitle" />
+        <button type="submit" class="ok">{{ i18n.t().addBtn }}</button>
+      </form>
+    } @else {
+      <div class="glossary-banner">
+        <span class="hint">{{ i18n.t().booksGlossaryHint }}</span>
+      </div>
+    }
 
-    @if (store.draggedId()) {
+    @if (store.draggedId() && (tab() !== 'book' || store.isAdmin())) {
       <div class="root-drop" [class.active]="rootDrop()"
         (dragover)="$event.preventDefault(); rootDrop.set(true)"
         (dragleave)="rootDrop.set(false)"

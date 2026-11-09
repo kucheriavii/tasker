@@ -1,4 +1,4 @@
-import { Component, inject, input, signal } from '@angular/core';
+import { Component, computed, inject, input, signal } from '@angular/core';
 import { Task } from './models';
 import { PopupService } from './popup';
 import { TaskStore } from './task-store';
@@ -18,7 +18,7 @@ import { I18nService } from './i18n';
       [class.drop-before]="dropZone() === 'before'"
       [class.drop-after]="dropZone() === 'after'"
       [class.drop-inside]="dropZone() === 'inside'"
-      [attr.draggable]="!editing()"
+      [attr.draggable]="!editing() && (task().rootKind !== 'book' || store.isAdmin())"
       (dragstart)="onDragStart($event)"
       (dragend)="onDragEnd()"
       (dragover)="onDragOver($event)"
@@ -28,7 +28,9 @@ import { I18nService } from './i18n';
 
       <div class="task-left">
         <div class="task-head">
-          <span class="grip" title="drag: top/bottom = reorder, center = make subtask">::</span>
+          @if (task().rootKind !== 'book' || store.isAdmin()) {
+            <span class="grip" title="drag: top/bottom = reorder, center = make subtask">::</span>
+          }
           @if (task().children.length) {
             <button class="icon toggle-btn" (click)="toggle()" title="collapse/expand">
               {{ task().collapsed ? '+' : '-' }}
@@ -72,19 +74,30 @@ import { I18nService } from './i18n';
       @if (!editing()) {
         <div class="meta-controls">
           <div class="meta-status">
-            <select [value]="task().statusId" (change)="setStatus($any($event.target).value)">
-              @for (s of store.statuses(); track s.id) {
-                <option [value]="s.id" [selected]="s.id === task().statusId">{{ s.name }}</option>
-              }
-            </select>
+            @if (task().rootKind !== 'book' || store.isAdmin()) {
+              <select [value]="task().statusId" (change)="setStatus($any($event.target).value)">
+                @for (s of store.statuses(); track s.id) {
+                  <option [value]="s.id" [selected]="s.id === task().statusId">{{ s.name }}</option>
+                }
+              </select>
+            } @else {
+              <span class="status-pill">{{ currentStatusName() }}</span>
+            }
           </div>
 
           <div class="meta-right">
             <app-progress [value]="task().progress" [done]="task().leafDone" [total]="task().leafTotal" />
             <div class="row-btns">
-              <button class="icon" (click)="editing.set(true)">{{ i18n.t().edit }}</button>
-              <button class="icon" (click)="adding.set(!adding())">{{ i18n.t().addSubtaskBtn }}</button>
-              <button class="icon danger" (click)="remove()" [title]="i18n.t().deleteBtn">{{ i18n.t().deleteBtn }}</button>
+              @if (task().rootKind === 'book' && task().parentId === null) {
+                <button class="icon clone-btn" (click)="$event.stopPropagation(); cloneBook()" [title]="i18n.t().cloneBookToTasks">
+                  {{ i18n.t().cloneBookShort }}
+                </button>
+              }
+              @if (task().rootKind !== 'book' || store.isAdmin()) {
+                <button class="icon" (click)="editing.set(true)">{{ i18n.t().edit }}</button>
+                <button class="icon" (click)="adding.set(!adding())">{{ i18n.t().addSubtaskBtn }}</button>
+                <button class="icon danger" (click)="remove()" [title]="i18n.t().deleteBtn">{{ i18n.t().deleteBtn }}</button>
+              }
             </div>
           </div>
         </div>
@@ -166,8 +179,31 @@ import { I18nService } from './i18n';
     .meta-controls { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; flex: 0 0 auto; }
     .meta-status { display: inline-flex; }
     .meta-status select { max-width: 130px; }
+    .status-pill {
+      font-size: 11px;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      padding: 1px 6px;
+      border-radius: 2px;
+      background: #fff;
+      white-space: nowrap;
+    }
     .meta-right { display: inline-flex; align-items: center; gap: 6px; }
     .row-btns { display: inline-flex; gap: 4px; align-items: center; }
+    .clone-btn {
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 11px;
+      padding: 1px 6px;
+      border: 1px solid var(--accent);
+      border-radius: 2px;
+      background: #f0f7ff;
+      white-space: nowrap;
+    }
+    .clone-btn:hover {
+      background: var(--accent);
+      color: #fff;
+    }
     .row.done .title { text-decoration: line-through; color: var(--muted); }
     .row.cancelled .title { text-decoration: line-through; color: var(--muted); font-style: italic; }
     .row.cancelled { opacity: 0.6; }
@@ -380,6 +416,17 @@ export class TaskItem {
   readonly editing = signal(false);
   readonly adding = signal(false);
   readonly dropZone = signal<'before' | 'after' | 'inside' | null>(null);
+  readonly currentStatusName = computed(() =>
+    this.store.statuses().find((s) => s.id === this.task().statusId)?.name ?? '');
+
+  async cloneBook() {
+    try {
+      const newId = await this.store.cloneBookToTasks(this.task().id);
+      this.store.openId.set(newId);
+    } catch (e: any) {
+      await this.popup.alert(e?.error?.error || 'Failed to clone book', 'error');
+    }
+  }
 
   formatDue(iso: string): string {
     return iso.replace('T', ' ').slice(0, 16);
@@ -420,6 +467,7 @@ export class TaskItem {
   }
 
   onDragStart(e: DragEvent) {
+    if (this.task().rootKind === 'book' && !this.store.isAdmin()) return;
     e.stopPropagation();
     this.store.draggedId.set(this.task().id);
     e.dataTransfer?.setData('text/plain', this.task().id);
@@ -430,6 +478,7 @@ export class TaskItem {
     this.dropZone.set(null);
   }
   onDragOver(e: DragEvent) {
+    if (this.task().rootKind === 'book' && !this.store.isAdmin()) return;
     const dragged = this.store.draggedId();
     if (!dragged || dragged === this.task().id) return;
     e.preventDefault();

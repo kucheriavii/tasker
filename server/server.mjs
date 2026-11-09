@@ -51,6 +51,18 @@ async function isInDeletedBranch(id) {
   return false;
 }
 
+async function getRootTask(id) {
+  let cur = id;
+  let last = null;
+  while (cur) {
+    const t = await q('SELECT id, parent_id, kind FROM tasks WHERE id=?').get(cur);
+    if (!t) break;
+    last = t;
+    cur = t.parent_id;
+  }
+  return last;
+}
+
 function readBody(req, limit = 1024 * 1024) {
   return new Promise((resolve, reject) => {
     const chunks = []; let size = 0;
@@ -81,6 +93,11 @@ route('GET', '/api/data', async (_r, res) => send(res, 200, await getData()));
 route('POST', '/api/tasks', async (req, res) => {
   const { parentId = null, title = '', kind = 'task', dueAt = null } = await readJson(req);
   const k = parentId ? 'task' : (kind === 'book' ? 'book' : 'task');
+  if (k === 'book') requireAdmin(req);
+  if (parentId) {
+    const root = await getRootTask(parentId);
+    if (root && root.kind === 'book') requireAdmin(req);
+  }
   if (!title.trim()) return send(res, 400, { error: 'title required' });
   const st = await q('SELECT id FROM statuses ORDER BY pos LIMIT 1').get();
   const id = randomUUID();
@@ -132,6 +149,8 @@ async function applyStatusRules(id, statusId) {
 }
 
 route('POST', '/api/tasks/:id/set-subtasks', async (req, res, { id }) => {
+  const root = await getRootTask(id);
+  if (root && root.kind === 'book') requireAdmin(req);
   const { statusId } = await readJson(req);
   const k = await statusKind(statusId);
   if (!k) return send(res, 400, { error: 'unknown status' });
@@ -154,6 +173,14 @@ route('POST', '/api/tasks/:id/set-subtasks', async (req, res, { id }) => {
 
 route('PATCH', '/api/tasks/:id', async (req, res, { id }) => {
   const b = await readJson(req);
+  const root = await getRootTask(id);
+  if (root && root.kind === 'book') {
+    const keys = Object.keys(b);
+    const onlyCollapsed = keys.length === 1 && keys[0] === 'collapsed';
+    if (!onlyCollapsed) requireAdmin(req);
+  } else if (b.kind === 'book') {
+    requireAdmin(req);
+  }
   const map = { title: 'title', description: 'description', statusId: 'status_id', collapsed: 'collapsed', kind: 'kind', dueAt: 'due_at' };
   const sets = []; const vals = [];
   for (const [k, col] of Object.entries(map)) if (k in b) {
@@ -167,13 +194,17 @@ route('PATCH', '/api/tasks/:id', async (req, res, { id }) => {
 });
 
 // soft delete -> trash
-route('DELETE', '/api/tasks/:id', async (_r, res, { id }) => {
+route('DELETE', '/api/tasks/:id', async (req, res, { id }) => {
+  const root = await getRootTask(id);
+  if (root && root.kind === 'book') requireAdmin(req);
   const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
   await q('UPDATE tasks SET deleted_at=? WHERE id=? AND deleted_at IS NULL').run(nowStr, id);
   send(res, 204);
 });
 
-route('POST', '/api/tasks/:id/restore', async (_r, res, { id }) => {
+route('POST', '/api/tasks/:id/restore', async (req, res, { id }) => {
+  const root = await getRootTask(id);
+  if (root && root.kind === 'book') requireAdmin(req);
   await tx(async () => {
     if (await isInDeletedBranch(id)) {
       const pos = await nextPos('tasks', 'parent_id IS NULL');
@@ -196,6 +227,8 @@ route('DELETE', '/api/trash', async (_r, res) => {
 
 // ---- images ----
 route('POST', '/api/tasks/:id/images', async (req, res, { id }, url) => {
+  const root = await getRootTask(id);
+  if (root && root.kind === 'book') requireAdmin(req);
   const mime = (req.headers['content-type'] || '').split(';')[0];
   if (!mime.startsWith('image/')) return send(res, 415, { error: 'image/* required' });
   if (!(await q('SELECT 1 FROM tasks WHERE id=?').get(id))) return send(res, 404, { error: 'no task' });
@@ -213,7 +246,12 @@ route('GET', '/api/images/:id', async (_r, res, { id }) => {
   send(res, 200, Buffer.from(i.data), { 'Content-Type': i.mime, 'Cache-Control': 'public, max-age=31536000, immutable' });
 });
 
-route('DELETE', '/api/images/:id', async (_r, res, { id }) => {
+route('DELETE', '/api/images/:id', async (req, res, { id }) => {
+  const img = await q('SELECT task_id FROM images WHERE id=?').get(id);
+  if (img) {
+    const root = await getRootTask(img.task_id);
+    if (root && root.kind === 'book') requireAdmin(req);
+  }
   await q('DELETE FROM images WHERE id=?').run(id);
   send(res, 204);
 });
@@ -275,7 +313,7 @@ route('DELETE', '/api/statuses/:id', async (req, res, { id }) => {
 });
 
 registerImport({ route, send, readBody, readJson, q, tx, nextPos, maxBody: MAX_IMAGE * 4, requireAdmin });
-registerFeatures({ route, send, readJson, q, tx, nextPos, descendants, requireAdmin });
+registerFeatures({ route, send, readJson, q, tx, nextPos, descendants, requireAdmin, getRootTask });
 
 // Static file serving for production (Single Page Application fallback to index.html)
 const MIME_TYPES = {

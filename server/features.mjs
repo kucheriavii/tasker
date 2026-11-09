@@ -91,12 +91,12 @@ async function generateAiTask({ topic, details }) {
 
 export function migrateFeatures() {}
 
-export function registerFeatures({ route, send, readJson, q, tx, nextPos, descendants }) {
-  const requireAdmin = (req) => {
+export function registerFeatures({ route, send, readJson, q, tx, nextPos, descendants, requireAdmin, getRootTask }) {
+  const reqAdmin = requireAdmin || ((req) => {
     if ((req.headers['x-admin-key'] || '') !== adminPass()) {
       throw fail('Admin role required to add or edit library content.', 403);
     }
-  };
+  });
 
   // ---- Admin role check ----
   route('POST', '/api/auth/admin', async (req, res) => {
@@ -105,12 +105,66 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
     send(res, 200, { ok: true });
   });
 
+  // ---- Clone book/task to tasks tab (available to any user) ----
+  route('POST', '/api/tasks/:id/clone-to-tasks', async (_req, res, { id }) => {
+    const src = await q('SELECT id,parent_id,title,description,kind FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
+    if (!src) return send(res, 404, { error: 'task not found' });
+    const st = await q('SELECT id FROM statuses ORDER BY pos LIMIT 1').get();
+
+    const rootId = await tx(async () => {
+      const rid = randomUUID();
+      const pos = await nextPos('tasks', 'parent_id IS NULL AND kind=?', 'task');
+      await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind) VALUES (?,?,?,?,?,?,?)').run(
+        rid, null, src.title, src.description || '', st.id, pos, 'task',
+      );
+
+      const srcImgs = await q('SELECT name,mime,data FROM images WHERE task_id=?').all(src.id);
+      for (const img of srcImgs) {
+        await q('INSERT INTO images (id,task_id,name,mime,data) VALUES (?,?,?,?,?)').run(
+          randomUUID(), rid, img.name, img.mime, img.data,
+        );
+      }
+
+      const cloneSubtree = async (oldParentId, newParentId) => {
+        const children = await q('SELECT id,title,description,pos FROM tasks WHERE parent_id=? AND deleted_at IS NULL ORDER BY pos').all(oldParentId);
+        for (const c of children) {
+          const cid = randomUUID();
+          await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind) VALUES (?,?,?,?,?,?,?)').run(
+            cid, newParentId, c.title, c.description || '', st.id, c.pos, 'task',
+          );
+          const cImgs = await q('SELECT name,mime,data FROM images WHERE task_id=?').all(c.id);
+          for (const img of cImgs) {
+            await q('INSERT INTO images (id,task_id,name,mime,data) VALUES (?,?,?,?,?)').run(
+              randomUUID(), cid, img.name, img.mime, img.data,
+            );
+          }
+          await cloneSubtree(c.id, cid);
+        }
+      };
+
+      await cloneSubtree(src.id, rid);
+      return rid;
+    });
+
+    send(res, 201, { id: rootId });
+  });
+
   // ---- Drag & Drop move / reparent / reorder ----
   route('POST', '/api/tasks/:id/move', async (req, res, { id }) => {
     const { targetId = null, mode = 'after', rootKind = null } = await readJson(req);
     const task = await q('SELECT id,parent_id,kind FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
     if (!task) return send(res, 404, { error: 'task not found' });
     if (targetId === id) return send(res, 204);
+
+    if (getRootTask) {
+      const root = await getRootTask(id);
+      if (root && root.kind === 'book') reqAdmin(req);
+      if (targetId) {
+        const targetRoot = await getRootTask(targetId);
+        if (targetRoot && targetRoot.kind === 'book') reqAdmin(req);
+      }
+      if (rootKind === 'book') reqAdmin(req);
+    }
 
     await tx(async () => {
       if (targetId) {

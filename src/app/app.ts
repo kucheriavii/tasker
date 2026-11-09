@@ -153,7 +153,23 @@ export class App {
     }
   }
 
+  async cloneBookToTasks(id: string) {
+    const rootId = this.store.breadcrumbs()[0]?.id ?? id;
+    try {
+      const newId = await this.store.cloneBookToTasks(rootId);
+      this.tab.set('task');
+      this.store.openId.set(newId);
+    } catch (e: any) {
+      await this.popup.alert(e?.error?.error || 'Failed to clone book', 'error');
+    }
+  }
+
+  getStatusName(statusId: string): string {
+    return this.store.statuses().find((s) => s.id === statusId)?.name ?? '';
+  }
+
   toggleKind(id: string, current: 'task' | 'book') {
+    if (!this.store.isAdmin()) return;
     const next = current === 'book' ? 'task' : 'book';
     this.store.updateTask(id, { kind: next });
     this.tab.set(next);

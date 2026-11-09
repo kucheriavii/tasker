@@ -27,6 +27,7 @@ export interface TaskRow {
 
 /** Tree node built client-side. */
 export interface Task extends TaskRow {
+  rootKind: 'task' | 'book';
   children: Task[];
   /** 0..1, share of finished leaf tasks in this subtree */
   progress: number;

@@ -54,6 +54,38 @@ button.danger:hover:not(:disabled) { color: var(--danger); border-color: var(--d
 .new-row .grow { flex: 1 1 220px; min-width: 0; width: auto; }
 .new-row .due-pick { width: auto; flex: 0 1 180px; font-size: 12px; }
 
+.glossary-banner {
+  background: #f4f6f8;
+  border: 1px dashed var(--line);
+  padding: 10px 14px;
+  margin: 8px 0;
+}
+.glossary-banner .hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.clone-btn-detail {
+  font-weight: 700 !important;
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
+  background: #f0f7ff !important;
+}
+.clone-btn-detail:hover {
+  background: var(--accent) !important;
+  color: #fff !important;
+}
+
+.status-pill {
+  font-size: 12px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  padding: 3px 8px;
+  border-radius: 2px;
+  background: #fff;
+}
+
 .panel {
   border: 1px solid var(--line);
   background: #fff;

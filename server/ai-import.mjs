@@ -116,7 +116,7 @@ async function generatePlan({ text, images = [] }) {
   try { return JSON.parse(raw); } catch { throw fail('Model returned an unreadable answer, try again.', 502); }
 }
 
-export function registerImport({ route, send, readBody, readJson, q, tx, nextPos, maxBody, requireAdmin }) {
+export function registerImport({ route, send, readBody, readJson, q, tx, nextPos, maxBody, requireAdmin, getUserId }) {
   const adminPass = () => process.env.ADMIN_PASSWORD || 'admin';
   const requireAdminFn = requireAdmin || ((req) => {
     if ((req.headers['x-admin-key'] || '') !== adminPass()) {
@@ -162,15 +162,21 @@ export function registerImport({ route, send, readBody, readJson, q, tx, nextPos
 
   route('POST', '/api/import/create', async (req, res) => {
     requireAdminFn(req);
+    const userId = getUserId ? getUserId(req, res) : null;
     const { title = '', description = '', items = [], targetKind = 'book', tags = '' } = await readJson(req);
     if (!title.trim()) return send(res, 400, { error: 'title required' });
     const k = targetKind === 'task' ? 'task' : 'book';
     const st = await q('SELECT id FROM statuses ORDER BY pos LIMIT 1').get();
+    const rowUser = k === 'book' ? null : userId;
     const id = await tx(async () => {
       const rootId = randomUUID();
-      const pos = await nextPos('tasks', 'parent_id IS NULL AND kind=?', k);
-      await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind,tags) VALUES (?,?,?,?,?,?,?,?)').run(
-        rootId, null, title.trim(), String(description ?? '').trim(), st.id, pos, k, String(tags ?? '').trim(),
+      const pos = k === 'book'
+        ? await nextPos('tasks', 'parent_id IS NULL AND kind=?', 'book')
+        : (userId
+            ? await nextPos('tasks', 'parent_id IS NULL AND kind=? AND user_id=?', 'task', userId)
+            : await nextPos('tasks', 'parent_id IS NULL AND kind=?', 'task'));
+      await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind,tags,user_id) VALUES (?,?,?,?,?,?,?,?,?)').run(
+        rootId, null, title.trim(), String(description ?? '').trim(), st.id, pos, k, String(tags ?? '').trim(), rowUser,
       );
       const add = async (list, parent) => {
         for (let i = 0; i < (list || []).length; i++) {
@@ -178,8 +184,8 @@ export function registerImport({ route, send, readBody, readJson, q, tx, nextPos
           const t = String(it?.title ?? '').trim();
           if (!t) continue;
           const cid = randomUUID();
-          await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind) VALUES (?,?,?,?,?,?,?)').run(
-            cid, parent, t, String(it?.description ?? '').trim(), st.id, i, 'task',
+          await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind,tags,user_id) VALUES (?,?,?,?,?,?,?,?,?)').run(
+            cid, parent, t, String(it?.description ?? '').trim(), st.id, i, 'task', '', rowUser,
           );
           if (Array.isArray(it.children)) await add(it.children, cid);
         }

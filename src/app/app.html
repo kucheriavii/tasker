@@ -9,10 +9,10 @@
       <button [class.ok]="store.isAdmin()" (click)="toggleRole()" [title]="store.isAdmin() ? i18n.t().roleSwitchToUser : i18n.t().roleSwitchToAdmin">
         [{{ i18n.t().role }}:{{ store.isAdmin() ? i18n.t().roleAdmin : i18n.t().roleUser }}]
       </button>
+      <button [class.ok]="panel() === 'trash'" (click)="toggle('trash')" [title]="i18n.t().trashDesc">[{{ i18n.t().trash }}{{ store.trash().length ? ':' + store.trash().length : '' }}]</button>
       @if (store.isAdmin()) {
         <button [class.ok]="panel() === 'import'" (click)="toggle('import')">[{{ i18n.t().import }}]</button>
         <button [class.ok]="panel() === 'purgatory'" (click)="toggle('purgatory')" [title]="i18n.t().purgatoryDesc">[{{ i18n.t().purgatory }}{{ store.purgatory().length ? ':' + store.purgatory().length : '' }}]</button>
-        <button [class.ok]="panel() === 'trash'" (click)="toggle('trash')">[{{ i18n.t().trash }}{{ store.trash().length ? ':' + store.trash().length : '' }}]</button>
         <button [class.ok]="panel() === 'statuses'" (click)="toggle('statuses')">[{{ i18n.t().statuses }}]</button>
       }
       <button class="lang-btn" (click)="i18n.toggleLang()" [title]="i18n.lang() === 'uk' ? 'Switch to English' : 'Перемкнути на українську'">
@@ -39,9 +39,15 @@
         </button>
       </div>
 
-      @if (store.isAdmin()) {
-        <div class="mobile-nav-section">
-          <div class="mobile-nav-label">{{ i18n.t().toolsSection }}</div>
+      <div class="mobile-nav-section">
+        <div class="mobile-nav-label">{{ i18n.t().toolsSection }}</div>
+        <button class="mobile-nav-item" [class.ok]="panel() === 'trash'" (click)="toggleMobile('trash')">
+          <span class="m-title">[{{ i18n.t().trash }}] {{ i18n.t().trashDesc }}</span>
+          @if (store.trash().length) {
+            <span class="m-badge">{{ store.trash().length }}</span>
+          }
+        </button>
+        @if (store.isAdmin()) {
           <button class="mobile-nav-item" [class.ok]="panel() === 'import'" (click)="toggleMobile('import')">
             <span class="m-title">[{{ i18n.t().import }}] {{ i18n.t().importDesc }}</span>
           </button>
@@ -54,14 +60,8 @@
           <button class="mobile-nav-item" [class.ok]="panel() === 'statuses'" (click)="toggleMobile('statuses')">
             <span class="m-title">[{{ i18n.t().statuses }}] {{ i18n.t().statusesDesc }}</span>
           </button>
-          <button class="mobile-nav-item" [class.ok]="panel() === 'trash'" (click)="toggleMobile('trash')">
-            <span class="m-title">[{{ i18n.t().trash }}] {{ i18n.t().trashDesc }}</span>
-            @if (store.trash().length) {
-              <span class="m-badge">{{ store.trash().length }}</span>
-            }
-          </button>
-        </div>
-      }
+        }
+      </div>
 
       <div class="mobile-nav-section">
         <div class="mobile-nav-label">{{ i18n.t().accessSection }}</div>
@@ -102,7 +102,7 @@
     </section>
   }
 
-  @if (panel() === 'trash' && store.isAdmin()) {
+  @if (panel() === 'trash') {
     <section class="panel">
       <div class="panel-head">
         <h2>{{ i18n.t().trashHeading }}</h2>

@@ -23,6 +23,7 @@ export interface TaskRow {
   /** Optional deadline (ISO datetime string YYYY-MM-DDTHH:mm) */
   dueAt: string | null;
   tags: string;
+  userId?: string | null;
   imageIds: string[];
 }
 

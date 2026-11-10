@@ -127,10 +127,13 @@ export async function initDb() {
         created_at TEXT NOT NULL DEFAULT (TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS')),
         kind TEXT NOT NULL DEFAULT 'task',
         due_at TEXT,
-        tags TEXT NOT NULL DEFAULT ''
+        tags TEXT NOT NULL DEFAULT '',
+        user_id TEXT
       );
       ALTER TABLE tasks ADD COLUMN IF NOT EXISTS tags TEXT NOT NULL DEFAULT '';
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS user_id TEXT;
       CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id);
+      CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
       CREATE TABLE IF NOT EXISTS images (
         id TEXT PRIMARY KEY,
         task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -192,9 +195,11 @@ export async function initDb() {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       kind TEXT NOT NULL DEFAULT 'task',
       due_at TEXT,
-      tags TEXT NOT NULL DEFAULT ''
+      tags TEXT NOT NULL DEFAULT '',
+      user_id TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
     CREATE TABLE IF NOT EXISTS images (
       id TEXT PRIMARY KEY,
       task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -215,6 +220,8 @@ export async function initDb() {
     );
   `);
   try { sqliteDb.exec("ALTER TABLE tasks ADD COLUMN tags TEXT NOT NULL DEFAULT ''"); } catch {}
+  try { sqliteDb.exec("ALTER TABLE tasks ADD COLUMN user_id TEXT"); } catch {}
+  try { sqliteDb.exec("CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id)"); } catch {}
 
   const stCount = sqliteDb.prepare('SELECT COUNT(*) c FROM statuses').get().c;
   if (stCount === 0) {

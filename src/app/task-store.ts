@@ -207,15 +207,15 @@ export class TaskStore {
     if (this.openId() === id || this.breadcrumbs().some((b) => b.id === id)) {
       this.openId.set(this.index().get(id)?.parentId ?? null);
     }
-    return this.call(firstValueFrom(this.http.delete(`/api/tasks/${id}`, this.adminHeaders())));
+    return this.call(firstValueFrom(this.http.delete(`/api/tasks/${id}`)));
   }
   /** Sets every subtask (any depth) of a task to the given status. */
   setSubtasksStatus(id: string, statusId: string) {
-    return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/set-subtasks`, { statusId }, this.adminHeaders())));
+    return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/set-subtasks`, { statusId })));
   }
-  restoreTask(id: string) { return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/restore`, {}, this.adminHeaders()))); }
-  purgeTask(id: string) { return this.call(firstValueFrom(this.http.delete(`/api/trash/${id}`, this.adminHeaders()))); }
-  emptyTrash() { return this.call(firstValueFrom(this.http.delete('/api/trash', this.adminHeaders()))); }
+  restoreTask(id: string) { return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/restore`, {}))); }
+  purgeTask(id: string) { return this.call(firstValueFrom(this.http.delete(`/api/trash/${id}`))); }
+  emptyTrash() { return this.call(firstValueFrom(this.http.delete('/api/trash'))); }
   emptyPurgatory() { return this.call(firstValueFrom(this.http.delete('/api/purgatory', this.adminHeaders()))); }
 
   /** Deep clones a book (or task tree) to tasks tab with fresh initial status. */

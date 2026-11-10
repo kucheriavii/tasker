@@ -91,7 +91,7 @@ async function generateAiTask({ topic, details }) {
 
 export function migrateFeatures() {}
 
-export function registerFeatures({ route, send, readJson, q, tx, nextPos, descendants, requireAdmin, getRootTask }) {
+export function registerFeatures({ route, send, readJson, q, tx, nextPos, descendants, requireAdmin, getRootTask, getUserId, isAdmin }) {
   const reqAdmin = requireAdmin || ((req) => {
     if ((req.headers['x-admin-key'] || '') !== adminPass()) {
       throw fail('Admin role required to add or edit library content.', 403);
@@ -106,16 +106,19 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
   });
 
   // ---- Clone book/task to tasks tab (available to any user) ----
-  route('POST', '/api/tasks/:id/clone-to-tasks', async (_req, res, { id }) => {
+  route('POST', '/api/tasks/:id/clone-to-tasks', async (req, res, { id }) => {
+    const userId = getUserId ? getUserId(req, res) : null;
     const src = await q('SELECT id,parent_id,title,description,kind,tags FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
     if (!src) return send(res, 404, { error: 'task not found' });
     const st = await q('SELECT id FROM statuses ORDER BY pos LIMIT 1').get();
 
     const rootId = await tx(async () => {
       const rid = randomUUID();
-      const pos = await nextPos('tasks', 'parent_id IS NULL AND kind=?', 'task');
-      await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind,tags) VALUES (?,?,?,?,?,?,?,?)').run(
-        rid, null, src.title, src.description || '', st.id, pos, 'task', src.tags || '',
+      const pos = userId
+        ? await nextPos('tasks', 'parent_id IS NULL AND kind=? AND user_id=?', 'task', userId)
+        : await nextPos('tasks', 'parent_id IS NULL AND kind=?', 'task');
+      await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind,tags,user_id) VALUES (?,?,?,?,?,?,?,?,?)').run(
+        rid, null, src.title, src.description || '', st.id, pos, 'task', src.tags || '', userId,
       );
 
       const srcImgs = await q('SELECT name,mime,data FROM images WHERE task_id=?').all(src.id);
@@ -129,8 +132,8 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
         const children = await q('SELECT id,title,description,pos FROM tasks WHERE parent_id=? AND deleted_at IS NULL ORDER BY pos').all(oldParentId);
         for (const c of children) {
           const cid = randomUUID();
-          await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind) VALUES (?,?,?,?,?,?,?)').run(
-            cid, newParentId, c.title, c.description || '', st.id, c.pos, 'task',
+          await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind,tags,user_id) VALUES (?,?,?,?,?,?,?,?,?)').run(
+            cid, newParentId, c.title, c.description || '', st.id, c.pos, 'task', '', userId,
           );
           const cImgs = await q('SELECT name,mime,data FROM images WHERE task_id=?').all(c.id);
           for (const img of cImgs) {
@@ -151,8 +154,9 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
 
   // ---- Drag & Drop move / reparent / reorder ----
   route('POST', '/api/tasks/:id/move', async (req, res, { id }) => {
+    const userId = getUserId ? getUserId(req, res) : null;
     const { targetId = null, mode = 'after', rootKind = null } = await readJson(req);
-    const task = await q('SELECT id,parent_id,kind FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
+    const task = await q('SELECT id,parent_id,kind,user_id FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
     if (!task) return send(res, 404, { error: 'task not found' });
     if (targetId === id) return send(res, 204);
 
@@ -164,6 +168,9 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
         if (targetRoot && targetRoot.kind === 'book') reqAdmin(req);
       }
       if (rootKind === 'book') reqAdmin(req);
+    }
+    if (task.kind !== 'book' && task.user_id && task.user_id !== userId && !(isAdmin && isAdmin(req))) {
+      return send(res, 403, { error: 'forbidden' });
     }
 
     await tx(async () => {
@@ -194,7 +201,9 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
       const siblings = (
         newParentId
           ? await q('SELECT id FROM tasks WHERE parent_id=? AND deleted_at IS NULL AND id<>? ORDER BY pos').all(newParentId, id)
-          : await q('SELECT id FROM tasks WHERE parent_id IS NULL AND kind=? AND deleted_at IS NULL AND id<>? ORDER BY pos').all(newKind, id)
+          : (newKind === 'book'
+              ? await q('SELECT id FROM tasks WHERE parent_id IS NULL AND kind=? AND deleted_at IS NULL AND id<>? ORDER BY pos').all(newKind, id)
+              : await q('SELECT id FROM tasks WHERE parent_id IS NULL AND kind=? AND deleted_at IS NULL AND (user_id=? OR user_id IS NULL) AND id<>? ORDER BY pos').all(newKind, userId, id))
       ).map((r) => r.id);
 
       const idx = targetId ? siblings.indexOf(targetId) : -1;
@@ -302,18 +311,25 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
   });
 
   route('POST', '/api/library/:id/clone', async (req, res, { id }) => {
+    const userId = getUserId ? getUserId(req, res) : null;
     const { targetKind = 'book' } = await readJson(req).catch(() => ({}));
     const k = targetKind === 'task' ? 'task' : 'book';
+    if (k === 'book') reqAdmin(req);
     const lib = await q('SELECT title,description,source_url,tree_json FROM library_items WHERE id=?').get(id);
     if (!lib) return send(res, 404, { error: 'library item not found' });
     const items = JSON.parse(lib.tree_json || '[]');
     const st = await q('SELECT id FROM statuses ORDER BY pos LIMIT 1').get();
+    const rowUser = k === 'book' ? null : userId;
     const rootId = await tx(async () => {
       const rid = randomUUID();
       const desc = [lib.description, lib.source_url ? `Source: ${lib.source_url}` : ''].filter(Boolean).join('\n');
-      const pos = await nextPos('tasks', 'parent_id IS NULL AND kind=?', k);
-      await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind) VALUES (?,?,?,?,?,?,?)').run(
-        rid, null, lib.title, desc, st.id, pos, k,
+      const pos = k === 'book'
+        ? await nextPos('tasks', 'parent_id IS NULL AND kind=?', 'book')
+        : (userId
+            ? await nextPos('tasks', 'parent_id IS NULL AND kind=? AND user_id=?', 'task', userId)
+            : await nextPos('tasks', 'parent_id IS NULL AND kind=?', 'task'));
+      await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind,user_id) VALUES (?,?,?,?,?,?,?,?)').run(
+        rid, null, lib.title, desc, st.id, pos, k, rowUser,
       );
       const add = async (list, parent) => {
         for (let i = 0; i < (list || []).length; i++) {
@@ -321,8 +337,8 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
           const t = String(it?.title ?? '').trim();
           if (!t) continue;
           const cid = randomUUID();
-          await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind) VALUES (?,?,?,?,?,?,?)').run(
-            cid, parent, t, String(it?.description ?? '').trim(), st.id, i, 'task',
+          await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind,user_id) VALUES (?,?,?,?,?,?,?,?)').run(
+            cid, parent, t, String(it?.description ?? '').trim(), st.id, i, 'task', rowUser,
           );
           if (Array.isArray(it.children)) await add(it.children, cid);
         }

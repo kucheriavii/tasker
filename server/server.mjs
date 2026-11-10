@@ -24,19 +24,59 @@ const MAX_IMAGE = 25 * 1024 * 1024;
 // Initialize Database (PostgreSQL if DATABASE_URL is set, otherwise SQLite)
 const dbInfo = await initDb();
 
-async function getData() {
+function getUserId(req, res) {
+  let uid = req?.headers?.['x-user-id'];
+  if (Array.isArray(uid)) uid = uid[0];
+  if (!uid && req?.headers?.cookie) {
+    const m = req.headers.cookie.match(/(?:^|;\s*)tasker_uid=([^;]+)/);
+    if (m) uid = decodeURIComponent(m[1]);
+  }
+  if (!uid || typeof uid !== 'string' || !uid.trim()) {
+    uid = randomUUID();
+  } else {
+    uid = uid.trim();
+  }
+  if (res && !res.headersSent) {
+    try {
+      res.setHeader('Set-Cookie', `tasker_uid=${encodeURIComponent(uid)}; Path=/; Max-Age=315360000; SameSite=Lax`);
+    } catch {}
+  }
+  return uid;
+}
+
+const adminPass = () => process.env.ADMIN_PASSWORD || 'admin';
+function isAdmin(req) {
+  return (req?.headers?.['x-admin-key'] || '') === adminPass();
+}
+function requireAdmin(req) {
+  if (!isAdmin(req)) {
+    const err = new Error('Admin role required');
+    err.status = 403;
+    throw err;
+  }
+}
+
+async function getData(userId) {
+  if (userId) {
+    // Claim any legacy unassigned tasks for this user so they don't disappear
+    await q("UPDATE tasks SET user_id=? WHERE user_id IS NULL AND kind<>'book'").run(userId);
+  }
   const statuses = (await q('SELECT id,name,done,cancelled,active FROM statuses ORDER BY pos').all())
     .map((s) => ({ ...s, done: !!s.done, cancelled: !!s.cancelled, active: !!s.active }));
   const imgs = await q('SELECT id,task_id FROM images ORDER BY created_at, id').all();
   const byTask = new Map();
   for (const i of imgs) (byTask.get(i.task_id) ?? byTask.set(i.task_id, []).get(i.task_id)).push(i.id);
   const tasks = (await q(
-    'SELECT id,parent_id,title,description,status_id,collapsed,deleted_at,kind,due_at,tags FROM tasks ORDER BY pos',
-  ).all()).map((t) => ({
+    `SELECT id,parent_id,title,description,status_id,collapsed,deleted_at,kind,due_at,tags,user_id
+     FROM tasks
+     WHERE kind='book' OR user_id=?
+     ORDER BY pos`,
+  ).all(userId)).map((t) => ({
     id: t.id, parentId: t.parent_id, title: t.title, description: t.description,
     statusId: t.status_id, collapsed: !!t.collapsed, deletedAt: t.deleted_at,
     kind: t.kind === 'book' ? 'book' : 'task', dueAt: t.due_at || null,
     tags: t.tags || '',
+    userId: t.user_id || null,
     imageIds: byTask.get(t.id) ?? [],
   }));
   return { statuses, tasks };
@@ -57,7 +97,7 @@ async function getRootTask(id) {
   let cur = id;
   let last = null;
   while (cur) {
-    const t = await q('SELECT id, parent_id, kind FROM tasks WHERE id=?').get(cur);
+    const t = await q('SELECT id, parent_id, kind, user_id FROM tasks WHERE id=?').get(cur);
     if (!t) break;
     last = t;
     cur = t.parent_id;
@@ -89,16 +129,25 @@ const send = (res, code, body, headers = {}) => {
 const routes = [];
 const route = (method, path, handler) => routes.push({ method, re: new RegExp('^' + path.replace(/:(\w+)/g, '(?<$1>[^/]+)') + '$'), handler });
 
-route('GET', '/api/data', async (_r, res) => send(res, 200, await getData()));
+route('GET', '/api/data', async (req, res) => send(res, 200, await getData(getUserId(req, res))));
 
 // ---- tasks ----
 route('POST', '/api/tasks', async (req, res) => {
+  const userId = getUserId(req, res);
   const { parentId = null, title = '', kind = 'task', dueAt = null, tags = '' } = await readJson(req);
   const k = parentId ? 'task' : (kind === 'book' ? 'book' : 'task');
   if (k === 'book') requireAdmin(req);
+  let parentUserId = null;
   if (parentId) {
+    const parentTask = await q('SELECT id, kind, user_id FROM tasks WHERE id=?').get(parentId);
+    if (!parentTask) return send(res, 404, { error: 'parent not found' });
+    parentUserId = parentTask.user_id;
     const root = await getRootTask(parentId);
-    if (root && root.kind === 'book') requireAdmin(req);
+    if (root && root.kind === 'book') {
+      requireAdmin(req);
+    } else if (parentTask.user_id && parentTask.user_id !== userId && !isAdmin(req)) {
+      return send(res, 403, { error: 'forbidden' });
+    }
   }
   if (!title.trim()) return send(res, 400, { error: 'title required' });
   const st = await q('SELECT id FROM statuses ORDER BY pos LIMIT 1').get();
@@ -106,9 +155,12 @@ route('POST', '/api/tasks', async (req, res) => {
   if (parentId) await q('UPDATE tasks SET collapsed=0 WHERE id=?').run(parentId);
   const pos = parentId
     ? await nextPos('tasks', 'parent_id=?', parentId)
-    : await nextPos('tasks', 'parent_id IS NULL AND kind=?', k);
-  await q('INSERT INTO tasks (id,parent_id,title,status_id,pos,kind,due_at,tags) VALUES (?,?,?,?,?,?,?,?)').run(
-    id, parentId, title.trim(), st.id, pos, k, dueAt || null, String(tags || '').trim(),
+    : (k === 'book'
+        ? await nextPos('tasks', 'parent_id IS NULL AND kind=?', 'book')
+        : await nextPos('tasks', 'parent_id IS NULL AND kind=? AND user_id=?', 'task', userId));
+  const rowUser = k === 'book' ? null : (parentId ? parentUserId || userId : userId);
+  await q('INSERT INTO tasks (id,parent_id,title,status_id,pos,kind,due_at,tags,user_id) VALUES (?,?,?,?,?,?,?,?,?)').run(
+    id, parentId, title.trim(), st.id, pos, k, dueAt || null, String(tags || '').trim(), rowUser,
   );
   send(res, 201, { id });
 });
@@ -120,6 +172,13 @@ async function descendants(id) {
   return (await q(`WITH RECURSIVE d(id) AS (
       SELECT id FROM tasks WHERE parent_id=? AND deleted_at IS NULL
       UNION ALL SELECT t.id FROM tasks t JOIN d ON t.parent_id=d.id WHERE t.deleted_at IS NULL)
+    SELECT id FROM d`).all(id)).map((r) => r.id);
+}
+
+async function allDescendants(id) {
+  return (await q(`WITH RECURSIVE d(id) AS (
+      SELECT id FROM tasks WHERE parent_id=?
+      UNION ALL SELECT t.id FROM tasks t JOIN d ON t.parent_id=d.id)
     SELECT id FROM d`).all(id)).map((r) => r.id);
 }
 
@@ -151,8 +210,15 @@ async function applyStatusRules(id, statusId) {
 }
 
 route('POST', '/api/tasks/:id/set-subtasks', async (req, res, { id }) => {
+  const userId = getUserId(req, res);
+  const task = await q('SELECT id, kind, user_id FROM tasks WHERE id=?').get(id);
+  if (!task) return send(res, 404, { error: 'task not found' });
   const root = await getRootTask(id);
-  if (root && root.kind === 'book') requireAdmin(req);
+  if (root && root.kind === 'book') {
+    requireAdmin(req);
+  } else if (task.user_id && task.user_id !== userId && !isAdmin(req)) {
+    return send(res, 403, { error: 'forbidden' });
+  }
   const { statusId } = await readJson(req);
   const k = await statusKind(statusId);
   if (!k) return send(res, 400, { error: 'unknown status' });
@@ -174,7 +240,10 @@ route('POST', '/api/tasks/:id/set-subtasks', async (req, res, { id }) => {
 });
 
 route('PATCH', '/api/tasks/:id', async (req, res, { id }) => {
+  const userId = getUserId(req, res);
   const b = await readJson(req);
+  const task = await q('SELECT id, kind, user_id FROM tasks WHERE id=?').get(id);
+  if (!task) return send(res, 404, { error: 'not found' });
   const root = await getRootTask(id);
   if (root && root.kind === 'book') {
     const keys = Object.keys(b);
@@ -182,6 +251,8 @@ route('PATCH', '/api/tasks/:id', async (req, res, { id }) => {
     if (!onlyCollapsed) requireAdmin(req);
   } else if (b.kind === 'book') {
     requireAdmin(req);
+  } else if (task.user_id && task.user_id !== userId && !isAdmin(req)) {
+    return send(res, 403, { error: 'forbidden' });
   }
   const map = { title: 'title', description: 'description', statusId: 'status_id', collapsed: 'collapsed', kind: 'kind', dueAt: 'due_at', tags: 'tags' };
   const sets = []; const vals = [];
@@ -197,11 +268,18 @@ route('PATCH', '/api/tasks/:id', async (req, res, { id }) => {
 
 // soft delete -> trash (tasks) or purgatory (books)
 route('DELETE', '/api/tasks/:id', async (req, res, { id }) => {
+  const userId = getUserId(req, res);
+  const task = await q('SELECT id, kind, user_id FROM tasks WHERE id=?').get(id);
+  if (!task) return send(res, 204);
   const root = await getRootTask(id);
-  if (root && root.kind === 'book') requireAdmin(req);
+  if (root && root.kind === 'book') {
+    requireAdmin(req);
+  } else if (task.user_id && task.user_id !== userId && !isAdmin(req)) {
+    return send(res, 403, { error: 'forbidden' });
+  }
   const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
   await tx(async () => {
-    const desc = await descendants(id);
+    const desc = await allDescendants(id);
     for (const d of [id, ...desc]) {
       await q('UPDATE tasks SET deleted_at=? WHERE id=? AND deleted_at IS NULL').run(nowStr, d);
     }
@@ -210,14 +288,23 @@ route('DELETE', '/api/tasks/:id', async (req, res, { id }) => {
 });
 
 route('POST', '/api/tasks/:id/restore', async (req, res, { id }) => {
+  const userId = getUserId(req, res);
+  const task = await q('SELECT id, kind, user_id FROM tasks WHERE id=?').get(id);
+  if (!task) return send(res, 404, { error: 'not found' });
   const root = await getRootTask(id);
-  if (root && root.kind === 'book') requireAdmin(req);
+  if (root && root.kind === 'book') {
+    requireAdmin(req);
+  } else if (task.user_id && task.user_id !== userId && !isAdmin(req)) {
+    return send(res, 403, { error: 'forbidden' });
+  }
   await tx(async () => {
     if (await isInDeletedBranch(id)) {
-      const pos = await nextPos('tasks', 'parent_id IS NULL');
+      const pos = task.kind === 'book'
+        ? await nextPos('tasks', 'parent_id IS NULL AND kind=?', 'book')
+        : await nextPos('tasks', 'parent_id IS NULL AND kind=? AND user_id=?', 'task', userId);
       await q('UPDATE tasks SET parent_id=NULL, pos=? WHERE id=?').run(pos, id);
     }
-    const desc = await descendants(id);
+    const desc = await allDescendants(id);
     for (const d of [id, ...desc]) {
       await q('UPDATE tasks SET deleted_at=NULL WHERE id=?').run(d);
     }
@@ -226,10 +313,17 @@ route('POST', '/api/tasks/:id/restore', async (req, res, { id }) => {
 });
 
 route('DELETE', '/api/trash/:id', async (req, res, { id }) => {
+  const userId = getUserId(req, res);
+  const task = await q('SELECT id, kind, user_id FROM tasks WHERE id=?').get(id);
+  if (!task) return send(res, 204);
   const root = await getRootTask(id);
-  if (root && root.kind === 'book') requireAdmin(req);
+  if (root && root.kind === 'book') {
+    requireAdmin(req);
+  } else if (task.user_id && task.user_id !== userId && !isAdmin(req)) {
+    return send(res, 403, { error: 'forbidden' });
+  }
   await tx(async () => {
-    const desc = await descendants(id);
+    const desc = await allDescendants(id);
     for (const d of [id, ...desc]) {
       await q('DELETE FROM images WHERE task_id=?').run(d);
       await q('DELETE FROM tasks WHERE id=?').run(d);
@@ -238,16 +332,17 @@ route('DELETE', '/api/trash/:id', async (req, res, { id }) => {
   send(res, 204);
 });
 
-route('DELETE', '/api/trash', async (_r, res) => {
+route('DELETE', '/api/trash', async (req, res) => {
+  const userId = getUserId(req, res);
   await tx(async () => {
     const rows = await q(`
       WITH RECURSIVE d(id) AS (
-        SELECT id FROM tasks WHERE deleted_at IS NOT NULL AND kind<>'book'
+        SELECT id FROM tasks WHERE deleted_at IS NOT NULL AND kind<>'book' AND user_id=?
         UNION ALL
         SELECT t.id FROM tasks t JOIN d ON t.parent_id=d.id
       )
       SELECT DISTINCT id FROM d
-    `).all();
+    `).all(userId);
     for (const r of rows) {
       await q('DELETE FROM images WHERE task_id=?').run(r.id);
       await q('DELETE FROM tasks WHERE id=?').run(r.id);
@@ -277,11 +372,17 @@ route('DELETE', '/api/purgatory', async (req, res) => {
 
 // ---- images ----
 route('POST', '/api/tasks/:id/images', async (req, res, { id }, url) => {
+  const userId = getUserId(req, res);
+  const task = await q('SELECT id, kind, user_id FROM tasks WHERE id=?').get(id);
+  if (!task) return send(res, 404, { error: 'no task' });
   const root = await getRootTask(id);
-  if (root && root.kind === 'book') requireAdmin(req);
+  if (root && root.kind === 'book') {
+    requireAdmin(req);
+  } else if (task.user_id && task.user_id !== userId && !isAdmin(req)) {
+    return send(res, 403, { error: 'forbidden' });
+  }
   const mime = (req.headers['content-type'] || '').split(';')[0];
   if (!mime.startsWith('image/')) return send(res, 415, { error: 'image/* required' });
-  if (!(await q('SELECT 1 FROM tasks WHERE id=?').get(id))) return send(res, 404, { error: 'no task' });
   const data = await readBody(req, MAX_IMAGE);
   const name = url.searchParams.get('name') || 'image';
   await q('INSERT INTO images (id,task_id,name,mime,data) VALUES (?,?,?,?,?)').run(
@@ -297,23 +398,22 @@ route('GET', '/api/images/:id', async (_r, res, { id }) => {
 });
 
 route('DELETE', '/api/images/:id', async (req, res, { id }) => {
+  const userId = getUserId(req, res);
   const img = await q('SELECT task_id FROM images WHERE id=?').get(id);
   if (img) {
-    const root = await getRootTask(img.task_id);
-    if (root && root.kind === 'book') requireAdmin(req);
+    const task = await q('SELECT id, kind, user_id FROM tasks WHERE id=?').get(img.task_id);
+    if (task) {
+      const root = await getRootTask(task.id);
+      if (root && root.kind === 'book') {
+        requireAdmin(req);
+      } else if (task.user_id && task.user_id !== userId && !isAdmin(req)) {
+        return send(res, 403, { error: 'forbidden' });
+      }
+    }
   }
   await q('DELETE FROM images WHERE id=?').run(id);
   send(res, 204);
 });
-
-const adminPass = () => process.env.ADMIN_PASSWORD || 'admin';
-function requireAdmin(req) {
-  if ((req.headers['x-admin-key'] || '') !== adminPass()) {
-    const err = new Error('Admin role required');
-    err.status = 403;
-    throw err;
-  }
-}
 
 // ---- statuses ----
 route('POST', '/api/statuses', async (req, res) => {
@@ -362,8 +462,8 @@ route('DELETE', '/api/statuses/:id', async (req, res, { id }) => {
   send(res, 204);
 });
 
-registerImport({ route, send, readBody, readJson, q, tx, nextPos, maxBody: MAX_IMAGE * 4, requireAdmin });
-registerFeatures({ route, send, readJson, q, tx, nextPos, descendants, requireAdmin, getRootTask });
+registerImport({ route, send, readBody, readJson, q, tx, nextPos, maxBody: MAX_IMAGE * 4, requireAdmin, getUserId, isAdmin });
+registerFeatures({ route, send, readJson, q, tx, nextPos, descendants, requireAdmin, getRootTask, getUserId, isAdmin });
 
 // Static file serving for production (Single Page Application fallback to index.html)
 const MIME_TYPES = {
@@ -391,7 +491,7 @@ function tryServeStatic(req, res, url) {
     ? join(here, '..', 'dist', 'tasker')
     : null;
 
-  if (!distDir || req.method !== 'GET') return false;
+  if (!distDir || (req.method !== 'GET' && req.method !== 'HEAD')) return false;
 
   const safePath = join(distDir, decodeURIComponent(url.pathname));
   if (!safePath.startsWith(distDir)) return false; // Prevent path traversal

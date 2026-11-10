@@ -104,7 +104,15 @@
 
   @if (panel() === 'trash' && store.isAdmin()) {
     <section class="panel">
-      <h2>{{ i18n.t().trashHeading }}</h2>
+      <div class="panel-head">
+        <h2>{{ i18n.t().trashHeading }}</h2>
+        <div class="panel-head-actions">
+          @if (store.trash().length) {
+            <button class="danger" (click)="emptyTrash()">{{ i18n.t().emptyTrashBtn }}</button>
+          }
+          <button (click)="panel.set('none')">[{{ i18n.t().close }}]</button>
+        </div>
+      </div>
       @for (t of store.trash(); track t.id) {
         <div class="srow">
           <span class="grow">{{ t.title }} <span class="hint">{{ t.deletedAt }}</span></span>
@@ -115,14 +123,24 @@
         <p class="hint">{{ i18n.t().trashEmpty }}</p>
       }
       @if (store.trash().length) {
-        <button class="danger" (click)="emptyTrash()">{{ i18n.t().emptyTrashBtn }}</button>
+        <div class="panel-foot">
+          <button class="danger" (click)="emptyTrash()">{{ i18n.t().emptyTrashBtn }}</button>
+        </div>
       }
     </section>
   }
 
   @if (panel() === 'purgatory' && store.isAdmin()) {
-    <section class="panel">
-      <h2>{{ i18n.t().purgatoryHeading }}</h2>
+    <section class="panel purgatory-panel">
+      <div class="panel-head">
+        <h2>{{ i18n.t().purgatoryHeading }}</h2>
+        <div class="panel-head-actions">
+          @if (store.purgatory().length) {
+            <button class="danger" (click)="emptyPurgatory()">{{ i18n.t().emptyPurgatoryBtn }}</button>
+          }
+          <button (click)="panel.set('none')">[{{ i18n.t().close }}]</button>
+        </div>
+      </div>
       <p class="hint">{{ i18n.t().purgatoryHint }}</p>
       @for (t of store.purgatory(); track t.id) {
         <div class="srow purg-row">
@@ -140,7 +158,9 @@
         <p class="hint">{{ i18n.t().purgatoryEmpty }}</p>
       }
       @if (store.purgatory().length) {
-        <button class="danger" (click)="emptyPurgatory()">{{ i18n.t().emptyPurgatoryBtn }}</button>
+        <div class="panel-foot">
+          <button class="danger" (click)="emptyPurgatory()">{{ i18n.t().emptyPurgatoryBtn }}</button>
+        </div>
       }
     </section>
   }

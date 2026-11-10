@@ -228,6 +228,31 @@ button.danger:hover:not(:disabled) { color: var(--danger); border-color: var(--d
   border-top: 1px solid var(--line);
 }
 
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.panel-head h2 { margin: 0; }
+.panel-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel-foot {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-end;
+}
+
 .panel {
   border: 1px solid var(--line);
   background: #fff;

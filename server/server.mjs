@@ -240,7 +240,14 @@ route('DELETE', '/api/trash/:id', async (req, res, { id }) => {
 
 route('DELETE', '/api/trash', async (_r, res) => {
   await tx(async () => {
-    const rows = await q("SELECT id FROM tasks WHERE deleted_at IS NOT NULL AND kind<>'book'").all();
+    const rows = await q(`
+      WITH RECURSIVE d(id) AS (
+        SELECT id FROM tasks WHERE deleted_at IS NOT NULL AND kind<>'book'
+        UNION ALL
+        SELECT t.id FROM tasks t JOIN d ON t.parent_id=d.id
+      )
+      SELECT DISTINCT id FROM d
+    `).all();
     for (const r of rows) {
       await q('DELETE FROM images WHERE task_id=?').run(r.id);
       await q('DELETE FROM tasks WHERE id=?').run(r.id);
@@ -252,13 +259,17 @@ route('DELETE', '/api/trash', async (_r, res) => {
 route('DELETE', '/api/purgatory', async (req, res) => {
   requireAdmin(req);
   await tx(async () => {
-    const rows = await q("SELECT id FROM tasks WHERE deleted_at IS NOT NULL AND kind='book'").all();
+    const rows = await q(`
+      WITH RECURSIVE d(id) AS (
+        SELECT id FROM tasks WHERE deleted_at IS NOT NULL AND kind='book'
+        UNION ALL
+        SELECT t.id FROM tasks t JOIN d ON t.parent_id=d.id
+      )
+      SELECT DISTINCT id FROM d
+    `).all();
     for (const r of rows) {
-      const desc = await descendants(r.id);
-      for (const d of [r.id, ...desc]) {
-        await q('DELETE FROM images WHERE task_id=?').run(d);
-        await q('DELETE FROM tasks WHERE id=?').run(d);
-      }
+      await q('DELETE FROM images WHERE task_id=?').run(r.id);
+      await q('DELETE FROM tasks WHERE id=?').run(r.id);
     }
   });
   send(res, 204);

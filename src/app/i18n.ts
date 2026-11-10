@@ -96,7 +96,7 @@ export const DICT = {
     // Trash panel
     trashHeading: '# кошик',
     trashEmpty: 'кошик порожній.',
-    emptyTrashBtn: '[очистити кошик]',
+    emptyTrashBtn: 'видалити все з кошика',
     restoreBtn: 'відновити',
     purgeBtn: 'видалити назавжди',
 
@@ -129,7 +129,7 @@ export const DICT = {
     moveToPurgatoryBtn: 'у чистилище',
     confirmPurgeTask: 'Видалити це завдання назавжди?',
     confirmPurgeBook: (title: string) => `Видалити "${title}" назавжди з бази даних?`,
-    confirmEmptyTrash: 'Очистити кошик? Цю дію неможливо скасувати.',
+    confirmEmptyTrash: 'Видалити всі завдання з кошика назавжди? Цю дію неможливо скасувати.',
     confirmEmptyPurgatory: 'Очистити чистилище? Усі видалені книги будуть стерті назавжди.',
     confirmDeleteImage: 'Видалити це зображення?',
     confirmDeleteStatus: (name: string) => `Видалити статус "${name}"?`,
@@ -264,7 +264,7 @@ export const DICT = {
     // Trash panel
     trashHeading: '# trash',
     trashEmpty: 'trash is empty.',
-    emptyTrashBtn: '[empty trash]',
+    emptyTrashBtn: 'delete all from trash',
     restoreBtn: 'restore',
     purgeBtn: 'purge',
 
@@ -297,7 +297,7 @@ export const DICT = {
     moveToPurgatoryBtn: 'to purgatory',
     confirmPurgeTask: 'Delete this task forever?',
     confirmPurgeBook: (title: string) => `Permanently delete "${title}" from database?`,
-    confirmEmptyTrash: 'Empty trash? This cannot be undone.',
+    confirmEmptyTrash: 'Permanently delete all tasks from trash? This cannot be undone.',
     confirmEmptyPurgatory: 'Empty all purgatory? All deleted books will be permanently erased.',
     confirmDeleteImage: 'Delete this image?',
     confirmDeleteStatus: (name: string) => `Delete status "${name}"?`,

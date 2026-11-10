@@ -206,18 +206,25 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
         if (!target) throw fail('target not found', 404);
         await q('UPDATE tasks SET collapsed=0 WHERE id=?').run(targetId);
         const pos = await nextPos('tasks', 'parent_id=?', targetId);
-        await q("UPDATE tasks SET parent_id=?, pos=?, kind='task' WHERE id=?").run(targetId, pos, id);
+        const targetRoot = getRootTask ? await getRootTask(targetId) : null;
+        const isBook = targetRoot ? targetRoot.kind === 'book' : false;
+        const targetKind = isBook ? 'book' : 'task';
+        const targetUser = isBook ? null : (userId || null);
+        await q("UPDATE tasks SET parent_id=?, pos=?, kind=?, user_id=? WHERE id=?").run(targetId, pos, targetKind, targetUser, id);
         return;
       }
 
       let newParentId = null;
-      let newKind = rootKind || task.kind || 'task';
+      let targetRoot = null;
       if (targetId) {
         const target = await q('SELECT id,parent_id,kind FROM tasks WHERE id=? AND deleted_at IS NULL').get(targetId);
         if (!target) throw fail('target not found', 404);
         newParentId = target.parent_id;
-        newKind = newParentId ? 'task' : (target.kind || 'task');
+        targetRoot = getRootTask ? await getRootTask(targetId) : null;
       }
+      const isBook = targetRoot ? targetRoot.kind === 'book' : (rootKind === 'book');
+      const newKind = isBook ? 'book' : 'task';
+      const newUserId = isBook ? null : (userId || null);
 
       const siblings = (
         newParentId
@@ -234,7 +241,7 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
         siblings.splice(mode === 'before' ? idx : idx + 1, 0, id);
       }
 
-      await q('UPDATE tasks SET parent_id=?, kind=? WHERE id=?').run(newParentId, newKind, id);
+      await q('UPDATE tasks SET parent_id=?, kind=?, user_id=? WHERE id=?').run(newParentId, newKind, newUserId, id);
       for (let i = 0; i < siblings.length; i++) {
         await q('UPDATE tasks SET pos=? WHERE id=?').run(i, siblings[i]);
       }
@@ -359,7 +366,7 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
           if (!t) continue;
           const cid = randomUUID();
           await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind,user_id) VALUES (?,?,?,?,?,?,?,?)').run(
-            cid, parent, t, String(it?.description ?? '').trim(), st.id, i, 'task', rowUser,
+            cid, parent, t, String(it?.description ?? '').trim(), st.id, i, k, rowUser,
           );
           if (Array.isArray(it.children)) await add(it.children, cid);
         }

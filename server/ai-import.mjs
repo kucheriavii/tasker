@@ -209,7 +209,7 @@ export function registerImport({ route, send, readBody, readJson, q, tx, nextPos
           if (!t) continue;
           const cid = randomUUID();
           await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind,tags,user_id) VALUES (?,?,?,?,?,?,?,?,?)').run(
-            cid, parent, t, String(it?.description ?? '').trim(), st.id, i, 'task', '', rowUser,
+            cid, parent, t, String(it?.description ?? '').trim(), st.id, i, k, '', rowUser,
           );
           if (Array.isArray(it.children)) await add(it.children, cid);
         }

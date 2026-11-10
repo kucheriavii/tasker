@@ -61,32 +61,53 @@ async function generateAiTask({ topic, details }) {
     `TOPIC / GOAL: ${topic}\n` +
     (details ? `EXTRA CONTEXT / LEVEL: ${details}\n` : '');
 
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-  const r = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema: AI_TASK_SCHEMA,
-          temperature: 0.25,
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      }),
-      signal: AbortSignal.timeout(90000),
-    },
-  );
-  if (!r.ok) throw fail(`Gemini error ${r.status}: ${(await r.text()).slice(0, 300)}`, 502);
-  const j = await r.json();
-  const raw = j.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') ?? '';
-  try {
-    return JSON.parse(raw);
-  } catch {
-    throw fail('Model returned an unreadable answer, try again.', 502);
+  const fallbackModels = [
+    process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+    'gemini-3.5-flash',
+  ].filter((v, i, a) => a.indexOf(v) === i);
+
+  let lastError = null;
+  for (const model of fallbackModels) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+      }
+      try {
+        const r = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: {
+                responseMimeType: 'application/json',
+                responseSchema: AI_TASK_SCHEMA,
+                temperature: 0.25,
+                thinkingConfig: { thinkingBudget: 0 },
+              },
+            }),
+            signal: AbortSignal.timeout(90000),
+          },
+        );
+        if (r.ok) {
+          const j = await r.json();
+          const raw = j.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') ?? '';
+          return JSON.parse(raw);
+        }
+        const errText = await r.text();
+        lastError = fail(`Gemini error ${r.status}: ${errText.slice(0, 300)}`, 502);
+        if (r.status === 503 || r.status === 429 || r.status >= 500) {
+          continue;
+        } else {
+          break;
+        }
+      } catch (e) {
+        lastError = e;
+      }
+    }
   }
+  throw lastError || fail('ШІ сервіс тимчасово перевантажений, спробуйте ще раз.', 502);
 }
 
 export function migrateFeatures() {}

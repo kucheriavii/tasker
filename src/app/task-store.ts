@@ -1,9 +1,16 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { ApiData, LibraryItem, Status, Task, TaskRow } from './models';
+import { ApiData, DEBUG_PROFILES, DebugProfile, LibraryItem, Status, Task, TaskRow } from './models';
 
 const ADMIN_KEY_STORAGE = 'tasker.adminKey';
+const USER_ID_STORAGE = 'tasker.userId';
+
+function getInitialProfile(): DebugProfile {
+  if (typeof window === 'undefined' || !window.localStorage) return DEBUG_PROFILES[0];
+  const storedId = localStorage.getItem(USER_ID_STORAGE);
+  return DEBUG_PROFILES.find((p) => p.id === storedId) || DEBUG_PROFILES[0];
+}
 
 /**
  * Thin client over the SQLite-backed REST API (server/server.mjs).
@@ -12,6 +19,9 @@ const ADMIN_KEY_STORAGE = 'tasker.adminKey';
 @Injectable({ providedIn: 'root' })
 export class TaskStore {
   private http = inject(HttpClient);
+
+  readonly profiles = DEBUG_PROFILES;
+  readonly currentProfile = signal<DebugProfile>(getInitialProfile());
 
   readonly data = signal<ApiData>({ statuses: [], tasks: [] });
   readonly library = signal<LibraryItem[]>([]);
@@ -133,8 +143,29 @@ export class TaskStore {
   });
 
   constructor() {
+    // Sync current profile to storage on init
+    const prof = this.currentProfile();
+    localStorage.setItem(USER_ID_STORAGE, prof.id);
+    if (prof.role === 'admin' && !this.adminKey()) {
+      localStorage.setItem(ADMIN_KEY_STORAGE, 'admin');
+      this.adminKey.set('admin');
+    }
     this.refresh();
     this.refreshLibrary();
+  }
+
+  switchProfile(profile: DebugProfile) {
+    this.currentProfile.set(profile);
+    localStorage.setItem(USER_ID_STORAGE, profile.id);
+    if (profile.role === 'admin') {
+      localStorage.setItem(ADMIN_KEY_STORAGE, 'admin');
+      this.adminKey.set('admin');
+    } else {
+      localStorage.removeItem(ADMIN_KEY_STORAGE);
+      this.adminKey.set('');
+    }
+    this.openId.set(null);
+    return this.refresh();
   }
 
   isDone(statusId: string): boolean { return this.doneIds().has(statusId); }

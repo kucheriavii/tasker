@@ -6,9 +6,29 @@
       <button class="brand-tab" [class.ok]="tab() === 'book' && !store.open() && panel() === 'none'" (click)="switchTab('book')" [title]="i18n.t().booksDesc">[{{ i18n.t().books }}:{{ store.books().length }}]</button>
     </div>
     <div class="nav-btns">
-      <button [class.ok]="store.isAdmin()" (click)="toggleRole()" [title]="store.isAdmin() ? i18n.t().roleSwitchToUser : i18n.t().roleSwitchToAdmin">
-        [{{ i18n.t().role }}:{{ store.isAdmin() ? i18n.t().roleAdmin : i18n.t().roleUser }}]
-      </button>
+      <!-- Debug Profile Switcher -->
+      <div class="profile-dropdown-wrap">
+        <button class="profile-btn" (click)="toggleProfileMenu()" [title]="i18n.t().switchProfile">
+          [{{ store.currentProfile().avatar }} {{ store.currentProfile().name }} ▾]
+        </button>
+        @if (profileMenuOpen()) {
+          <div class="profile-dropdown-backdrop" (click)="profileMenuOpen.set(false)"></div>
+          <div class="profile-dropdown">
+            <div class="profile-dropdown-title">{{ i18n.t().profilesHeading }}</div>
+            @for (p of store.profiles; track p.id) {
+              <button
+                class="profile-option"
+                [class.active]="store.currentProfile().id === p.id"
+                (click)="selectProfile(p)">
+                <span class="p-avatar">{{ p.avatar }}</span>
+                <span class="p-name">{{ p.name }}</span>
+                <span class="p-role badge">{{ p.role }}</span>
+              </button>
+            }
+          </div>
+        }
+      </div>
+
       <button [class.ok]="panel() === 'trash'" (click)="toggle('trash')" [title]="i18n.t().trashDesc">[{{ i18n.t().trash }}{{ store.trash().length ? ':' + store.trash().length : '' }}]</button>
       @if (store.isAdmin()) {
         <button [class.ok]="panel() === 'import'" (click)="toggle('import')">[{{ i18n.t().import }}]</button>
@@ -59,6 +79,19 @@
           </button>
           <button class="mobile-nav-item" [class.ok]="panel() === 'statuses'" (click)="toggleMobile('statuses')">
             <span class="m-title">[{{ i18n.t().statuses }}] {{ i18n.t().statusesDesc }}</span>
+          </button>
+        }
+      </div>
+
+      <div class="mobile-nav-section">
+        <div class="mobile-nav-label">{{ i18n.t().profilesHeading }}</div>
+        @for (p of store.profiles; track p.id) {
+          <button
+            class="mobile-nav-item profile-nav-item"
+            [class.ok]="store.currentProfile().id === p.id"
+            (click)="selectProfile(p)">
+            <span class="m-title">{{ p.avatar }} {{ p.name }}</span>
+            <span class="m-badge" [class.badge-admin]="p.role === 'admin'">{{ p.role }}</span>
           </button>
         }
       </div>

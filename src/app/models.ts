@@ -58,3 +58,18 @@ export interface LibraryItem {
   totalItems: number;
   items: LibraryNode[];
 }
+
+export interface DebugProfile {
+  id: string;
+  name: string;
+  role: 'user' | 'admin';
+  avatar: string;
+}
+
+export const DEBUG_PROFILES: DebugProfile[] = [
+  { id: 'user-olena', name: 'Олена (користувач)', role: 'user', avatar: '👩' },
+  { id: 'user-taras', name: 'Тарас (користувач)', role: 'user', avatar: '👨' },
+  { id: 'user-iryna', name: 'Ірина (користувач)', role: 'user', avatar: '👩‍🦰' },
+  { id: 'admin-oleksiy', name: 'Олексій (адмін)', role: 'admin', avatar: '👑' },
+  { id: 'admin-maria', name: 'Марія (адмін)', role: 'admin', avatar: '👑' },
+];

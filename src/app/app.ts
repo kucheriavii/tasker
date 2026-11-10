@@ -5,6 +5,7 @@ import { PopupModal, PopupService } from './popup';
 import { TaskStore } from './task-store';
 import { Progress } from './progress';
 import { I18nService } from './i18n';
+import { DebugProfile } from './models';
 
 @Component({
   selector: 'app-root',
@@ -21,6 +22,7 @@ export class App {
   readonly tab = signal<'task' | 'book'>('task');
   readonly panel = signal<'none' | 'statuses' | 'trash' | 'import' | 'purgatory'>('none');
   readonly menuOpen = signal(false);
+  readonly profileMenuOpen = signal(false);
   readonly dragging = signal(false);
   readonly rootDrop = signal(false);
   readonly editTitle = signal(false);
@@ -52,9 +54,21 @@ export class App {
 
   toggleMenu() {
     this.menuOpen.update((v) => !v);
+    if (this.menuOpen()) this.profileMenuOpen.set(false);
   }
 
   closeMenu() {
+    this.menuOpen.set(false);
+    this.profileMenuOpen.set(false);
+  }
+
+  toggleProfileMenu() {
+    this.profileMenuOpen.update((v) => !v);
+  }
+
+  selectProfile(p: DebugProfile) {
+    this.store.switchProfile(p);
+    this.profileMenuOpen.set(false);
     this.menuOpen.set(false);
   }
 

@@ -66,6 +66,23 @@ export interface DebugProfile {
   avatar: string;
 }
 
+export interface AuthUser {
+  id: string;
+  email?: string | null;
+  name: string;
+  avatarUrl?: string;
+  role: 'user' | 'admin';
+  provider: 'google' | 'github' | 'local' | 'guest';
+}
+
+export interface AuthStatus {
+  user: AuthUser | null;
+  providers: {
+    google: boolean;
+    github: boolean;
+  };
+}
+
 export const DEBUG_PROFILES: DebugProfile[] = [
   { id: 'admin', name: 'Адмін', role: 'admin', avatar: '👑' },
   { id: 'user', name: 'Користувач', role: 'user', avatar: '👤' },

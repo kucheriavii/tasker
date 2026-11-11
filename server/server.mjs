@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { initDb, q, tx, nextPos } from './db.mjs';
 import { registerImport } from './ai-import.mjs';
 import { registerFeatures } from './features.mjs';
+import { registerAuth, resolveSessionUser } from './auth.mjs';
 
 // minimal .env loader (no dependencies); must run before modules read process.env
 const here = dirname(fileURLToPath(import.meta.url));
@@ -25,6 +26,7 @@ const MAX_IMAGE = 25 * 1024 * 1024;
 const dbInfo = await initDb();
 
 function getUserId(req, res) {
+  if (req?._resolvedUser?.id) return req._resolvedUser.id;
   let uid = req?.headers?.['x-user-id'];
   if (Array.isArray(uid)) uid = uid[0];
   if (!uid && req?.headers?.cookie) {
@@ -32,7 +34,7 @@ function getUserId(req, res) {
     if (m) uid = decodeURIComponent(m[1]);
   }
   if (!uid || typeof uid !== 'string' || !uid.trim()) {
-    uid = randomUUID();
+    uid = 'user';
   } else {
     uid = uid.trim();
   }
@@ -46,7 +48,9 @@ function getUserId(req, res) {
 
 const adminPass = () => process.env.ADMIN_PASSWORD || 'admin';
 function isAdmin(req) {
-  return (req?.headers?.['x-admin-key'] || '') === adminPass();
+  if (req?.headers?.['x-admin-key'] === adminPass()) return true;
+  if (req?._resolvedUser?.role === 'admin') return true;
+  return false;
 }
 function requireAdmin(req) {
   if (!isAdmin(req)) {
@@ -478,6 +482,7 @@ route('DELETE', '/api/statuses/:id', async (req, res, { id }) => {
 
 registerImport({ route, send, readBody, readJson, q, tx, nextPos, maxBody: MAX_IMAGE * 4, requireAdmin, getUserId, isAdmin });
 registerFeatures({ route, send, readJson, q, tx, nextPos, descendants, requireAdmin, getRootTask, getUserId, isAdmin });
+registerAuth({ route, send, readJson, q, tx });
 
 // Static file serving for production (Single Page Application fallback to index.html)
 const MIME_TYPES = {
@@ -534,6 +539,7 @@ function tryServeStatic(req, res, url) {
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
+    req._resolvedUser = await resolveSessionUser(req, q);
     for (const r of routes) {
       if (r.method !== req.method) continue;
       const m = r.re.exec(url.pathname);

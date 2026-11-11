@@ -23,6 +23,7 @@ export class App {
   readonly panel = signal<'none' | 'statuses' | 'trash' | 'import' | 'purgatory'>('none');
   readonly menuOpen = signal(false);
   readonly profileMenuOpen = signal(false);
+  readonly authModalOpen = signal(false);
   readonly dragging = signal(false);
   readonly rootDrop = signal(false);
   readonly editTitle = signal(false);
@@ -35,6 +36,23 @@ export class App {
     this.tab() === 'book' ? this.store.filteredBooks() : this.store.tree());
 
   constructor() {
+    // Check for auth error in query string
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      const authError = url.searchParams.get('auth_error');
+      if (authError) {
+        url.searchParams.delete('auth_error');
+        window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+        if (authError === 'google_not_configured') {
+          this.popup.alert('Google OAuth не налаштовано', 'Будь ласка, вкажіть GOOGLE_CLIENT_ID та GOOGLE_CLIENT_SECRET у файлі .env.');
+        } else if (authError === 'github_not_configured') {
+          this.popup.alert('GitHub OAuth не налаштовано', 'Будь ласка, вкажіть GITHUB_CLIENT_ID та GITHUB_CLIENT_SECRET у файлі .env.');
+        } else {
+          this.popup.alert('Помилка авторизації', `Не вдалося виконати вхід: ${authError}`);
+        }
+      }
+    }
+
     // leave edit modes when navigating to another task; sync tab with root task kind
     effect(() => {
       this.store.openId();
@@ -64,6 +82,29 @@ export class App {
 
   toggleProfileMenu() {
     this.profileMenuOpen.update((v) => !v);
+  }
+
+  openAuthModal() {
+    this.authModalOpen.set(true);
+    this.profileMenuOpen.set(false);
+    this.closeMenu();
+  }
+
+  closeAuthModal() {
+    this.authModalOpen.set(false);
+  }
+
+  async logout() {
+    await this.store.logout();
+    this.profileMenuOpen.set(false);
+    this.closeMenu();
+  }
+
+  async devLogin(p: DebugProfile) {
+    await this.store.devLogin(p);
+    this.authModalOpen.set(false);
+    this.profileMenuOpen.set(false);
+    this.closeMenu();
   }
 
   selectProfile(p: DebugProfile) {

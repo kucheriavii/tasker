@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { ApiData, DEBUG_PROFILES, DebugProfile, LibraryItem, Status, Task, TaskRow } from './models';
+import { ApiData, AuthStatus, AuthUser, DEBUG_PROFILES, DebugProfile, LibraryItem, Status, Task, TaskRow } from './models';
 
 const ADMIN_KEY_STORAGE = 'tasker.adminKey';
 const USER_ID_STORAGE = 'tasker.userId';
@@ -23,6 +23,10 @@ export class TaskStore {
   readonly profiles = DEBUG_PROFILES;
   readonly currentProfile = signal<DebugProfile>(getInitialProfile());
 
+  readonly authUser = signal<AuthUser | null>(null);
+  readonly authProviders = signal<{ google: boolean; github: boolean }>({ google: false, github: false });
+  readonly authLoaded = signal<boolean>(false);
+
   readonly data = signal<ApiData>({ statuses: [], tasks: [] });
   readonly library = signal<LibraryItem[]>([]);
   readonly loaded = signal(false);
@@ -34,7 +38,12 @@ export class TaskStore {
 
   /** User role: 'admin' can add/edit/delete in library; 'user' can only browse & clone. */
   readonly adminKey = signal<string>(localStorage.getItem(ADMIN_KEY_STORAGE) || '');
-  readonly role = computed<'user' | 'admin'>(() => (this.adminKey() ? 'admin' : 'user'));
+  readonly currentUserId = computed(() => this.authUser()?.id || this.currentProfile().id);
+  readonly role = computed<'user' | 'admin'>(() => {
+    if (this.authUser()?.role === 'admin') return 'admin';
+    if (this.adminKey() === 'admin') return 'admin';
+    return this.currentProfile().role;
+  });
   readonly isAdmin = computed(() => this.role() === 'admin');
 
   readonly statuses = computed(() => this.data().statuses);
@@ -150,8 +159,62 @@ export class TaskStore {
       localStorage.setItem(ADMIN_KEY_STORAGE, 'admin');
       this.adminKey.set('admin');
     }
-    this.refresh();
-    this.refreshLibrary();
+    this.checkAuth().then(() => {
+      this.refresh();
+      this.refreshLibrary();
+    });
+  }
+
+  async checkAuth() {
+    try {
+      const res = await firstValueFrom(this.http.get<AuthStatus>('/api/auth/me'));
+      this.authProviders.set(res.providers || { google: false, github: false });
+      if (res.user) {
+        this.authUser.set(res.user);
+        if (res.user.role === 'admin') {
+          this.adminKey.set('admin');
+          localStorage.setItem(ADMIN_KEY_STORAGE, 'admin');
+        } else {
+          this.adminKey.set('');
+          localStorage.removeItem(ADMIN_KEY_STORAGE);
+        }
+        localStorage.setItem(USER_ID_STORAGE, res.user.id);
+        const avatar = res.user.avatarUrl && res.user.avatarUrl.length <= 4
+          ? res.user.avatarUrl
+          : (res.user.role === 'admin' ? '👑' : '👤');
+        this.currentProfile.set({
+          id: res.user.id,
+          name: res.user.name,
+          role: res.user.role,
+          avatar,
+        });
+      } else {
+        this.authUser.set(null);
+      }
+      this.authLoaded.set(true);
+    } catch {
+      this.authLoaded.set(true);
+    }
+  }
+
+  async logout() {
+    try {
+      await firstValueFrom(this.http.post('/api/auth/logout', {}));
+    } catch {}
+    this.authUser.set(null);
+    localStorage.removeItem(ADMIN_KEY_STORAGE);
+    this.adminKey.set('');
+    await this.switchProfile(DEBUG_PROFILES[1]);
+  }
+
+  async devLogin(profile: DebugProfile) {
+    try {
+      const res = await firstValueFrom(this.http.post<{ ok: boolean; user: AuthUser }>('/api/auth/dev-login', { profileId: profile.id }));
+      if (res?.user) {
+        this.authUser.set(res.user);
+      }
+    } catch {}
+    return this.switchProfile(profile);
   }
 
   switchProfile(profile: DebugProfile) {
@@ -192,13 +255,21 @@ export class TaskStore {
     this.adminKey.set('');
   }
 
+  private reqHeaders(extra: Record<string, string> = {}) {
+    const headers: Record<string, string> = { ...extra };
+    const uid = this.currentUserId();
+    if (uid) headers['x-user-id'] = uid;
+    if (this.isAdmin()) headers['x-admin-key'] = this.adminKey() || 'admin';
+    return { headers };
+  }
+
   private adminHeaders() {
-    return { headers: { 'x-admin-key': this.adminKey() } };
+    return this.reqHeaders();
   }
 
   async refresh() {
     try {
-      this.data.set(await firstValueFrom(this.http.get<ApiData>('/api/data')));
+      this.data.set(await firstValueFrom(this.http.get<ApiData>('/api/data', this.reqHeaders())));
       this.error.set(null);
     } catch {
       this.error.set('API is not reachable. Start it with: npm start');
@@ -208,7 +279,7 @@ export class TaskStore {
 
   async refreshLibrary() {
     try {
-      this.library.set(await firstValueFrom(this.http.get<LibraryItem[]>('/api/library')));
+      this.library.set(await firstValueFrom(this.http.get<LibraryItem[]>('/api/library', this.reqHeaders())));
     } catch {}
   }
 
@@ -223,35 +294,35 @@ export class TaskStore {
 
   addTask(parentId: string | null, title: string, kind: 'task' | 'book' = 'task', dueAt: string | null = null, tags = '') {
     if (!title.trim()) return;
-    return this.call(firstValueFrom(this.http.post('/api/tasks', { parentId, title, kind, dueAt: dueAt || null, tags: tags || '' }, this.adminHeaders())));
+    return this.call(firstValueFrom(this.http.post('/api/tasks', { parentId, title, kind, dueAt: dueAt || null, tags: tags || '' }, this.reqHeaders())));
   }
   updateTask(id: string, patch: Partial<Pick<Task, 'title' | 'description' | 'statusId' | 'collapsed' | 'kind' | 'dueAt' | 'tags'>>) {
-    return this.call(firstValueFrom(this.http.patch(`/api/tasks/${id}`, patch, this.adminHeaders())));
+    return this.call(firstValueFrom(this.http.patch(`/api/tasks/${id}`, patch, this.reqHeaders())));
   }
   /** Drag & Drop: reorder before/after targetId, or move inside targetId as a subtask. */
   moveTask(id: string, targetId: string | null, mode: 'before' | 'after' | 'inside', rootKind?: 'task' | 'book') {
     if (!id || id === targetId) return;
-    return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/move`, { targetId, mode, rootKind }, this.adminHeaders())));
+    return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/move`, { targetId, mode, rootKind }, this.reqHeaders())));
   }
   /** Moves task (with subtree) to trash / purgatory. */
   removeTask(id: string) {
     if (this.openId() === id || this.breadcrumbs().some((b) => b.id === id)) {
       this.openId.set(this.index().get(id)?.parentId ?? null);
     }
-    return this.call(firstValueFrom(this.http.delete(`/api/tasks/${id}`)));
+    return this.call(firstValueFrom(this.http.delete(`/api/tasks/${id}`, this.reqHeaders())));
   }
   /** Sets every subtask (any depth) of a task to the given status. */
   setSubtasksStatus(id: string, statusId: string) {
-    return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/set-subtasks`, { statusId })));
+    return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/set-subtasks`, { statusId }, this.reqHeaders())));
   }
-  restoreTask(id: string) { return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/restore`, {}))); }
-  purgeTask(id: string) { return this.call(firstValueFrom(this.http.delete(`/api/trash/${id}`))); }
-  emptyTrash() { return this.call(firstValueFrom(this.http.delete('/api/trash'))); }
-  emptyPurgatory() { return this.call(firstValueFrom(this.http.delete('/api/purgatory', this.adminHeaders()))); }
+  restoreTask(id: string) { return this.call(firstValueFrom(this.http.post(`/api/tasks/${id}/restore`, {}, this.reqHeaders()))); }
+  purgeTask(id: string) { return this.call(firstValueFrom(this.http.delete(`/api/trash/${id}`, this.reqHeaders()))); }
+  emptyTrash() { return this.call(firstValueFrom(this.http.delete('/api/trash', this.reqHeaders()))); }
+  emptyPurgatory() { return this.call(firstValueFrom(this.http.delete('/api/purgatory', this.reqHeaders()))); }
 
   /** Deep clones a book (or task tree) to tasks tab with fresh initial status. */
   async cloneBookToTasks(bookId: string): Promise<string> {
-    const res = await firstValueFrom(this.http.post<{ id: string }>(`/api/tasks/${bookId}/clone-to-tasks`, {}));
+    const res = await firstValueFrom(this.http.post<{ id: string }>(`/api/tasks/${bookId}/clone-to-tasks`, {}, this.reqHeaders()));
     await this.refresh();
     return res.id;
   }

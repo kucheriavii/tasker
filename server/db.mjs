@@ -152,6 +152,32 @@ export async function initDb() {
         tree_json TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT (TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
       );
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE,
+        name TEXT NOT NULL,
+        avatar_url TEXT NOT NULL DEFAULT '',
+        provider TEXT NOT NULL DEFAULT 'local',
+        provider_id TEXT,
+        role TEXT NOT NULL DEFAULT 'user',
+        created_at TEXT NOT NULL DEFAULT (TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+      CREATE INDEX IF NOT EXISTS idx_users_provider ON users(provider, provider_id);
+
+      CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL DEFAULT (TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS')),
+        expires_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+      INSERT INTO users (id, email, name, avatar_url, provider, role)
+      VALUES
+        ('admin', 'admin@tasker.local', 'Адмін', '👑', 'local', 'admin'),
+        ('user', 'user@tasker.local', 'Користувач', '👤', 'local', 'user')
+      ON CONFLICT (id) DO NOTHING;
     `);
 
     // Auto-seed or auto-migrate from SQLite
@@ -218,6 +244,31 @@ export async function initDb() {
       tree_json TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE,
+      name TEXT NOT NULL,
+      avatar_url TEXT NOT NULL DEFAULT '',
+      provider TEXT NOT NULL DEFAULT 'local',
+      provider_id TEXT,
+      role TEXT NOT NULL DEFAULT 'user',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+    CREATE INDEX IF NOT EXISTS idx_users_provider ON users(provider, provider_id);
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+    INSERT OR IGNORE INTO users (id, email, name, avatar_url, provider, role)
+    VALUES
+      ('admin', 'admin@tasker.local', 'Адмін', '👑', 'local', 'admin'),
+      ('user', 'user@tasker.local', 'Користувач', '👤', 'local', 'user');
   `);
   try { sqliteDb.exec("ALTER TABLE tasks ADD COLUMN tags TEXT NOT NULL DEFAULT ''"); } catch {}
   try { sqliteDb.exec("ALTER TABLE tasks ADD COLUMN user_id TEXT"); } catch {}

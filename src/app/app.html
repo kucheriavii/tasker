@@ -15,17 +15,42 @@
       <!-- Profile Dropdown -->
       <div class="profile-dropdown-wrap">
         <button class="profile-btn" (click)="toggleProfileMenu()" [title]="i18n.t().switchProfile">
-          [{{ store.currentProfile().avatar }} {{ store.currentProfile().name }} ▾]
+          <span>[</span>
+          @if (!avatarImgFailed() && isAvatarUrl(store.currentProfile().avatar)) {
+            <img
+              [src]="store.currentProfile().avatar"
+              class="header-avatar-img"
+              alt="avatar"
+              referrerpolicy="no-referrer"
+              (error)="avatarImgFailed.set(true)" />
+          } @else {
+            <span class="header-avatar-emoji">{{ getProfileEmoji(store.currentProfile()) }}</span>
+          }
+          <span class="header-profile-name">{{ store.currentProfile().name }}</span>
+          <span>▾]</span>
         </button>
         @if (profileMenuOpen()) {
           <div class="profile-dropdown-backdrop" (click)="profileMenuOpen.set(false)"></div>
           <div class="profile-dropdown">
             @if (store.authUser()) {
               <div class="profile-dropdown-userinfo">
-                <div class="p-email">{{ store.authUser()?.email || store.authUser()?.name }}</div>
-                <div class="p-meta">
-                  <span class="badge" [class.badge-admin]="store.isAdmin()">{{ store.authUser()?.role }}</span>
-                  <span class="p-prov">via {{ store.authUser()?.provider }}</span>
+                @if (!avatarImgFailed() && isAvatarUrl(store.authUser()?.avatarUrl)) {
+                  <img
+                    [src]="store.authUser()!.avatarUrl"
+                    class="dropdown-avatar-img"
+                    alt="avatar"
+                    referrerpolicy="no-referrer"
+                    (error)="avatarImgFailed.set(true)" />
+                } @else {
+                  <div class="dropdown-avatar-fallback">{{ getProfileEmoji(store.currentProfile()) }}</div>
+                }
+                <div class="p-details">
+                  <div class="p-name">{{ store.authUser()?.name }}</div>
+                  <div class="p-email">{{ store.authUser()?.email }}</div>
+                  <div class="p-meta">
+                    <span class="badge" [class.badge-admin]="store.isAdmin()">{{ store.authUser()?.role }}</span>
+                    <span class="p-prov">via {{ store.authUser()?.provider }}</span>
+                  </div>
                 </div>
               </div>
               <button class="profile-option danger-btn" (click)="logout()">
@@ -113,11 +138,24 @@
       <div class="mobile-nav-section">
         <div class="mobile-nav-label">{{ i18n.t().profilesHeading }}</div>
         @if (store.authUser()) {
-          <div class="profile-dropdown-userinfo" style="margin-bottom: 6px; border-radius: 3px;">
-            <div class="p-email">{{ store.authUser()?.email || store.authUser()?.name }}</div>
-            <div class="p-meta">
-              <span class="badge" [class.badge-admin]="store.isAdmin()">{{ store.authUser()?.role }}</span>
-              <span class="p-prov">via {{ store.authUser()?.provider }}</span>
+          <div class="profile-dropdown-userinfo mobile-userinfo">
+            @if (!avatarImgFailed() && isAvatarUrl(store.authUser()?.avatarUrl)) {
+              <img
+                [src]="store.authUser()!.avatarUrl"
+                class="dropdown-avatar-img"
+                alt="avatar"
+                referrerpolicy="no-referrer"
+                (error)="avatarImgFailed.set(true)" />
+            } @else {
+              <div class="dropdown-avatar-fallback">{{ getProfileEmoji(store.currentProfile()) }}</div>
+            }
+            <div class="p-details">
+              <div class="p-name">{{ store.authUser()?.name }}</div>
+              <div class="p-email">{{ store.authUser()?.email }}</div>
+              <div class="p-meta">
+                <span class="badge" [class.badge-admin]="store.isAdmin()">{{ store.authUser()?.role }}</span>
+                <span class="p-prov">via {{ store.authUser()?.provider }}</span>
+              </div>
             </div>
           </div>
           <button class="mobile-nav-item" (click)="logout()">

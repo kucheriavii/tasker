@@ -56,11 +56,30 @@ button.danger:hover:not(:disabled) { color: var(--danger); border-color: var(--d
   border-color: #3b82f6;
 }
 .profile-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-weight: 600;
   color: #1a4f78;
   background: #f0f7ff;
   border-color: #bcd4ee;
   white-space: nowrap;
+}
+.header-avatar-img {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: inline-block;
+  vertical-align: middle;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+.header-avatar-emoji {
+  display: inline-block;
+  line-height: 1;
+}
+.header-profile-name {
+  margin: 0 1px;
 }
 .profile-btn:hover {
   border-color: var(--accent);
@@ -79,31 +98,75 @@ button.danger:hover:not(:disabled) { color: var(--danger); border-color: var(--d
   border: 1px solid var(--line);
   box-shadow: 0 4px 12px rgba(0,0,0,0.12);
   z-index: 1001;
-  min-width: 230px;
+  min-width: 240px;
   padding: 4px;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 .profile-dropdown-userinfo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 8px 10px;
   background: #f8fafc;
   border-bottom: 1px solid var(--line);
   margin-bottom: 4px;
 }
-.profile-dropdown-userinfo .p-email {
+.dropdown-avatar-img {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.dropdown-avatar-fallback {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #eef2f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+}
+.profile-dropdown-userinfo .p-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.profile-dropdown-userinfo .p-name {
   font-weight: 700;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--fg);
-  word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-dropdown-userinfo .p-email {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .profile-dropdown-userinfo .p-meta {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 4px;
+  margin-top: 3px;
   font-size: 11px;
   color: var(--muted);
+}
+.mobile-userinfo {
+  border-radius: 3px;
+  margin-bottom: 6px;
+  border: 1px solid var(--line);
 }
 .profile-divider {
   height: 1px;

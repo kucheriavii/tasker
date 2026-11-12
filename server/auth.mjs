@@ -168,15 +168,16 @@ export function registerAuth({ route, send, readJson, q, tx }) {
       const user = await tx(async () => {
         let existing = null;
         if (email) {
-          existing = await q('SELECT id, email, name, role FROM users WHERE (provider=\x27google\x27 AND provider_id=?) OR email=?').get(sub, email);
+          existing = await q('SELECT id, email, name, avatar_url, role FROM users WHERE (provider=\x27google\x27 AND provider_id=?) OR email=?').get(sub, email);
         } else {
-          existing = await q('SELECT id, email, name, role FROM users WHERE provider=\x27google\x27 AND provider_id=?').get(sub);
+          existing = await q('SELECT id, email, name, avatar_url, role FROM users WHERE provider=\x27google\x27 AND provider_id=?').get(sub);
         }
 
         if (existing) {
           const newRole = isEmailAdmin(email) ? 'admin' : existing.role;
+          const finalAvatar = avatarUrl || existing.avatar_url || '';
           await q('UPDATE users SET name=?, avatar_url=?, provider=\x27google\x27, provider_id=?, role=? WHERE id=?').run(
-            name, avatarUrl, sub, newRole, existing.id,
+            name, finalAvatar, sub, newRole, existing.id,
           );
           return { id: existing.id, role: newRole };
         }
@@ -320,15 +321,16 @@ export function registerAuth({ route, send, readJson, q, tx }) {
       const user = await tx(async () => {
         let existing = null;
         if (email) {
-          existing = await q('SELECT id, email, name, role FROM users WHERE (provider=\x27github\x27 AND provider_id=?) OR email=?').get(ghId, email);
+          existing = await q('SELECT id, email, name, avatar_url, role FROM users WHERE (provider=\x27github\x27 AND provider_id=?) OR email=?').get(ghId, email);
         } else {
-          existing = await q('SELECT id, email, name, role FROM users WHERE provider=\x27github\x27 AND provider_id=?').get(ghId);
+          existing = await q('SELECT id, email, name, avatar_url, role FROM users WHERE provider=\x27github\x27 AND provider_id=?').get(ghId);
         }
 
         if (existing) {
           const newRole = isEmailAdmin(email) ? 'admin' : existing.role;
+          const finalAvatar = avatarUrl || existing.avatar_url || '';
           await q('UPDATE users SET name=?, avatar_url=?, provider=\x27github\x27, provider_id=?, role=? WHERE id=?').run(
-            name, avatarUrl, ghId, newRole, existing.id,
+            name, finalAvatar, ghId, newRole, existing.id,
           );
           return { id: existing.id, role: newRole };
         }

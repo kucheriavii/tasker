@@ -179,14 +179,15 @@ export class TaskStore {
           localStorage.removeItem(ADMIN_KEY_STORAGE);
         }
         localStorage.setItem(USER_ID_STORAGE, res.user.id);
-        const avatar = res.user.avatarUrl && res.user.avatarUrl.length <= 4
-          ? res.user.avatarUrl
-          : (res.user.role === 'admin' ? '👑' : '👤');
+        const hasUrl = !!(res.user.avatarUrl && (res.user.avatarUrl.startsWith('http://') || res.user.avatarUrl.startsWith('https://') || res.user.avatarUrl.startsWith('data:')));
+        const fallbackEmoji = res.user.role === 'admin' ? '👑' : '👤';
+        const avatar = hasUrl ? res.user.avatarUrl! : (res.user.avatarUrl || fallbackEmoji);
         this.currentProfile.set({
           id: res.user.id,
           name: res.user.name,
           role: res.user.role,
           avatar,
+          avatarUrl: hasUrl ? res.user.avatarUrl : undefined,
         });
       } else {
         this.authUser.set(null);

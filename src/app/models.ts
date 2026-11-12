@@ -64,6 +64,7 @@ export interface DebugProfile {
   name: string;
   role: 'user' | 'admin';
   avatar: string;
+  avatarUrl?: string;
 }
 
 export interface AuthUser {

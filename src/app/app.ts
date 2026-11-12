@@ -31,6 +31,20 @@ export class App {
   readonly editTags = signal(false);
   readonly descBox = viewChild<ElementRef<HTMLTextAreaElement>>('dd');
   readonly tagsInput = viewChild<ElementRef<HTMLInputElement>>('tagsBox');
+  readonly avatarImgFailed = signal(false);
+
+  isAvatarUrl(val?: string | null): boolean {
+    if (!val) return false;
+    return val.startsWith('http://') || val.startsWith('https://') || val.startsWith('data:');
+  }
+
+  getProfileEmoji(profile?: DebugProfile | null): string {
+    if (!profile) return '👤';
+    if (this.isAvatarUrl(profile.avatar)) {
+      return profile.role === 'admin' ? '👑' : '👤';
+    }
+    return profile.avatar || (profile.role === 'admin' ? '👑' : '👤');
+  }
 
   readonly activeList = computed(() =>
     this.tab() === 'book' ? this.store.filteredBooks() : this.store.tree());

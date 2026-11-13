@@ -187,6 +187,16 @@ export async function initDb() {
       );
       CREATE INDEX IF NOT EXISTS idx_roadmaps_user ON roadmaps(user_id);
 
+      CREATE TABLE IF NOT EXISTS user_roadmap_progress (
+        user_id TEXT NOT NULL,
+        roadmap_id TEXT NOT NULL REFERENCES roadmaps(id) ON DELETE CASCADE,
+        progress_json TEXT NOT NULL DEFAULT '{}',
+        updated_at TEXT NOT NULL DEFAULT (TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS')),
+        PRIMARY KEY (user_id, roadmap_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_urp_user ON user_roadmap_progress(user_id);
+      CREATE INDEX IF NOT EXISTS idx_urp_roadmap ON user_roadmap_progress(roadmap_id);
+
       INSERT INTO users (id, email, name, avatar_url, provider, role)
       VALUES
         ('admin', 'admin@tasker.local', 'Адмін', '👑', 'local', 'admin'),
@@ -300,6 +310,16 @@ export async function initDb() {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_roadmaps_user ON roadmaps(user_id);
+
+    CREATE TABLE IF NOT EXISTS user_roadmap_progress (
+      user_id TEXT NOT NULL,
+      roadmap_id TEXT NOT NULL REFERENCES roadmaps(id) ON DELETE CASCADE,
+      progress_json TEXT NOT NULL DEFAULT '{}',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, roadmap_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_urp_user ON user_roadmap_progress(user_id);
+    CREATE INDEX IF NOT EXISTS idx_urp_roadmap ON user_roadmap_progress(roadmap_id);
 
     INSERT OR IGNORE INTO users (id, email, name, avatar_url, provider, role)
     VALUES

@@ -17,15 +17,21 @@ import { Roadmap, RoadmapNode } from './models';
               <option [value]="rm.id">{{ rm.title }}</option>
             }
           </select>
-          @if (store.activeRoadmap()) {
+          @if (store.activeRoadmap() && store.isAdmin()) {
             <button class="icon-btn danger" (click)="deleteCurrentRoadmap()" [title]="i18n.t().deleteBtn">🗑️</button>
           }
         </div>
 
         <div class="topbar-actions">
-          <button class="ai-create-btn" (click)="openAiModal()">
-            ✨ {{ i18n.t().createRoadmapBtn }}
-          </button>
+          @if (store.isAdmin()) {
+            <button class="ai-create-btn" (click)="openAiModal()">
+              ✨ {{ i18n.t().createRoadmapBtn }}
+            </button>
+          } @else {
+            <span class="learner-badge" [title]="i18n.t().roadmapPersonalProgressHint">
+              {{ i18n.t().roadmapLearnerBadge }}
+            </span>
+          }
         </div>
       </div>
 
@@ -276,6 +282,12 @@ import { Roadmap, RoadmapNode } from './models';
                 <button type="button" class="preset-chip" (click)="goalInput.value = 'AI & LLM Інженер (Python, LangChain, Agents, RAG, PyTorch)'">
                   🧠 AI / ML Інженер
                 </button>
+                <button type="button" class="preset-chip" (click)="goalInput.value = 'QA Automation Інженер (Playwright, Python, API, CI/CD, k6)'">
+                  🧪 QA Automation
+                </button>
+                <button type="button" class="preset-chip" (click)="goalInput.value = 'Cybersecurity & AppSec Спеціаліст (OWASP, DevSecOps, SIEM)'">
+                  🛡️ Кібербезпека
+                </button>
               </div>
             </div>
 
@@ -409,6 +421,10 @@ export class RoadmapComponent {
   }
 
   async deleteCurrentRoadmap() {
+    if (!this.store.isAdmin()) {
+      await this.popup.alert(this.i18n.t().roadmapAdminOnlyCreate, 'info');
+      return;
+    }
     const cur = this.store.activeRoadmap();
     if (!cur) return;
     const ok = await this.popup.confirm(this.i18n.t().deleteRoadmapConfirm(cur.title));
@@ -419,6 +435,10 @@ export class RoadmapComponent {
   }
 
   openAiModal() {
+    if (!this.store.isAdmin()) {
+      this.popup.alert(this.i18n.t().roadmapAdminOnlyCreate, 'info');
+      return;
+    }
     this.aiModalOpen.set(true);
   }
 

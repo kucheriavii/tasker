@@ -46,6 +46,8 @@ services:
       - ./server/features.mjs:/app/server/features.mjs:ro
       - ./server/auth.mjs:/app/server/auth.mjs:ro
       - ./server/server.mjs:/app/server/server.mjs:ro
+      - ./server/db.mjs:/app/server/db.mjs:ro
+      - ./server/roadmap.mjs:/app/server/roadmap.mjs:ro
 
 volumes:
   pgdata:

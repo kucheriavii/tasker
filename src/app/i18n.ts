@@ -176,6 +176,9 @@ export const DICT = {
     rankAdept: 'Спеціаліст',
     rankExpert: 'Експерт',
     rankMaster: 'Майстер',
+    roadmapLearnerBadge: '⚔️ Режим учня',
+    roadmapPersonalProgressHint: 'Ваш особистий прогрес фіксується окремо в базі даних',
+    roadmapAdminOnlyCreate: 'Створювати та видаляти карти розвитку може лише адміністратор.',
 
     // Popups / dialogs
     confirmTitle: 'підтвердження',
@@ -402,6 +405,9 @@ export const DICT = {
     rankAdept: 'Adept',
     rankExpert: 'Expert',
     rankMaster: 'Master',
+    roadmapLearnerBadge: '⚔️ Learner mode',
+    roadmapPersonalProgressHint: 'Your personal progress is tracked individually in the database',
+    roadmapAdminOnlyCreate: 'Only administrators can create or delete roadmaps.',
 
     // Popups / dialogs
     confirmTitle: 'confirmation',

@@ -112,6 +112,8 @@ export interface Roadmap {
   title: string;
   description: string;
   targetRole: string;
+  category?: string;
+  icon?: string;
   branches: string[];
   nodes: RoadmapNode[];
   createdAt?: string;

@@ -164,11 +164,8 @@ export class TaskStore {
     const list = this.roadmaps();
     if (!list.length) return null;
     const curId = this.activeRoadmapId();
-    if (curId) {
-      const found = list.find((r) => r.id === curId);
-      if (found) return found;
-    }
-    return list[0];
+    if (!curId) return null;
+    return list.find((r) => r.id === curId) ?? null;
   });
   readonly selectedSkillId = signal<string | null>(null);
   readonly selectedSkill = computed<RoadmapNode | null>(() => {
@@ -425,9 +422,6 @@ export class TaskStore {
     try {
       const res = await firstValueFrom(this.http.get<{ roadmaps: Roadmap[] }>('/api/roadmaps', this.reqHeaders()));
       this.roadmaps.set(res?.roadmaps || []);
-      if (!this.activeRoadmapId() && res?.roadmaps?.length) {
-        this.activeRoadmapId.set(res.roadmaps[0].id);
-      }
     } catch {}
   }
 

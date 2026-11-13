@@ -8,34 +8,33 @@ import { Roadmap, RoadmapNode } from './models';
   selector: 'app-roadmap',
   template: `
     <div class="roadmap-container">
-      <!-- Top Control Bar -->
-      <div class="roadmap-topbar">
-        <div class="roadmap-select-wrap">
-          <label class="rm-label">{{ i18n.t().roadmap }}:</label>
-          <select class="rm-select" [value]="store.activeRoadmapId() || ''" (change)="onRoadmapSelect($any($event.target).value)">
-            @for (rm of store.roadmaps(); track rm.id) {
-              <option [value]="rm.id">{{ rm.title }}</option>
-            }
-          </select>
-          @if (store.activeRoadmap() && store.isAdmin()) {
-            <button class="icon-btn danger" (click)="deleteCurrentRoadmap()" [title]="i18n.t().deleteBtn">🗑️</button>
-          }
-        </div>
-
-        <div class="topbar-actions">
-          @if (store.isAdmin()) {
-            <button class="ai-create-btn" (click)="openAiModal()">
-              ✨ {{ i18n.t().createRoadmapBtn }}
-            </button>
-          } @else {
-            <span class="learner-badge" [title]="i18n.t().roadmapPersonalProgressHint">
-              {{ i18n.t().roadmapLearnerBadge }}
-            </span>
-          }
-        </div>
-      </div>
-
       @if (store.activeRoadmap(); as rm) {
+        <!-- ================= INSIDE ROADMAP VIEW (Diablo 2 Skill Tree) ================= -->
+        <div class="roadmap-topbar inside-bar">
+          <div class="roadmap-breadcrumbs">
+            <button class="crumb-btn" (click)="backToCatalog()">~ {{ i18n.t().roadmap }}</button>
+            <span class="crumb-sep">/</span>
+            <button class="crumb-btn cat-crumb" (click)="selectCategoryAndBack(rm.category || 'Загальні')">
+              📁 {{ rm.category || 'Загальні' }}
+            </button>
+            <span class="crumb-sep">/</span>
+            <span class="crumb-current">{{ rm.icon || '🗺️' }} {{ rm.title }}</span>
+          </div>
+
+          <div class="topbar-actions">
+            <button class="back-catalog-btn" (click)="backToCatalog()">
+              {{ i18n.t().backToRoadmaps }}
+            </button>
+            @if (store.isAdmin()) {
+              <button class="icon-btn danger" (click)="deleteCurrentRoadmap()" [title]="i18n.t().deleteBtn">🗑️</button>
+            } @else {
+              <span class="learner-badge" [title]="i18n.t().roadmapPersonalProgressHint">
+                {{ i18n.t().roadmapLearnerBadge }}
+              </span>
+            }
+          </div>
+        </div>
+
         <!-- Diablo Hero Progress Banner -->
         <div class="hero-banner">
           <div class="hero-rank-orb">
@@ -47,6 +46,7 @@ import { Roadmap, RoadmapNode } from './models';
             <div class="hero-title-row">
               <h2 class="hero-title">{{ rm.title }}</h2>
               <span class="hero-role-badge">[{{ rm.targetRole }}]</span>
+              <span class="hero-cat-badge">📁 {{ rm.category || 'Загальні' }}</span>
             </div>
             <p class="hero-desc">{{ rm.description }}</p>
 
@@ -72,7 +72,6 @@ import { Roadmap, RoadmapNode } from './models';
 
         <!-- Diablo 2 Skill Tree Board -->
         <div class="skill-tree-board">
-          <!-- Tiers columns -->
           @for (tier of tiersList(); track tier) {
             <div class="tier-column">
               <div class="tier-header">
@@ -104,35 +103,9 @@ import { Roadmap, RoadmapNode } from './models';
 
                     <div class="socket-info">
                       <div class="socket-title">{{ node.title }}</div>
-                      <div class="socket-meta">
-                        <span class="socket-branch">{{ node.branch }}</span>
-                        @if (node.topics && node.topics.length) {
-                          <span class="socket-points">
-                            {{ (node.completedTopics?.length || 0) }}/{{ node.topics.length }}
-                          </span>
-                        }
-                      </div>
+                      <div class="socket-branch">{{ node.branch }}</div>
+                      <div class="socket-status-label">{{ getStatusText(node.status) }}</div>
                     </div>
-
-                    <div class="socket-status-badge">
-                      @if (node.status === 'completed') {
-                        <span class="status-tag tag-mastered">{{ i18n.t().skillCompleted }}</span>
-                      } @else if (node.status === 'in_progress') {
-                        <span class="status-tag tag-learning">{{ i18n.t().skillInProgress }}</span>
-                      } @else if (node.status === 'available') {
-                        <span class="status-tag tag-ready">{{ i18n.t().skillUnlocked }}</span>
-                      } @else {
-                        <span class="status-tag tag-locked">{{ i18n.t().skillLocked }}</span>
-                      }
-                    </div>
-
-                    @if (node.prerequisites && node.prerequisites.length) {
-                      <div class="prereq-indicators" [title]="i18n.t().prerequisitesTitle">
-                        @for (pid of node.prerequisites; track pid) {
-                          <span class="prereq-dot" [class.dot-met]="isPrereqMet(pid)">•</span>
-                        }
-                      </div>
-                    }
                   </div>
                 }
               </div>
@@ -140,12 +113,104 @@ import { Roadmap, RoadmapNode } from './models';
           }
         </div>
       } @else {
-        <div class="empty-roadmap">
-          <div class="empty-icon">🗺️</div>
-          <p>{{ i18n.t().noRoadmapsYet }}</p>
-          <button class="ai-create-btn large" (click)="openAiModal()">
-            ✨ {{ i18n.t().createRoadmapBtn }}
-          </button>
+        <!-- ================= FRONTPAGE / CATALOG VIEW (Categorized Folders) ================= -->
+        <div class="frontpage-container">
+          <div class="frontpage-hero">
+            <div class="hero-left">
+              <h2 class="frontpage-title">🗺️ {{ i18n.t().roadmapFrontpageTitle }}</h2>
+              <p class="frontpage-desc">{{ i18n.t().roadmapFrontpageDesc }}</p>
+            </div>
+            <div class="hero-right">
+              @if (store.isAdmin()) {
+                <button class="ai-create-btn large" (click)="openAiModal()">
+                  ✨ {{ i18n.t().createRoadmapBtn }}
+                </button>
+              } @else {
+                <span class="learner-badge" [title]="i18n.t().roadmapPersonalProgressHint">
+                  {{ i18n.t().roadmapLearnerBadge }}
+                </span>
+              }
+            </div>
+          </div>
+
+          <!-- Controls: Search & Category Chips -->
+          <div class="frontpage-toolbar">
+            <div class="search-wrap">
+              <input
+                type="text"
+                class="search-input"
+                [value]="searchQuery()"
+                (input)="searchQuery.set($any($event.target).value)"
+                [placeholder]="i18n.t().searchRoadmapsPlaceholder" />
+              @if (searchQuery()) {
+                <button class="clear-search-btn" (click)="searchQuery.set('')">✕</button>
+              }
+            </div>
+
+            <div class="category-chips">
+              <button
+                class="category-chip"
+                [class.active]="selectedCategory() === null"
+                (click)="selectedCategory.set(null)">
+                📁 {{ i18n.t().allCategories }} ({{ store.roadmaps().length }})
+              </button>
+              @for (cat of categories(); track cat.name) {
+                <button
+                  class="category-chip"
+                  [class.active]="selectedCategory() === cat.name"
+                  (click)="selectedCategory.set(selectedCategory() === cat.name ? null : cat.name)">
+                  📁 {{ cat.name }} ({{ cat.count }})
+                </button>
+              }
+            </div>
+          </div>
+
+          <!-- Categorized Folders Grid -->
+          <div class="categories-list">
+            @for (group of groupedByCategory(); track group.category) {
+              <div class="category-folder-block">
+                <div class="folder-header">
+                  <span class="folder-icon">📁</span>
+                  <h3 class="folder-title">{{ group.category }}</h3>
+                  <span class="folder-count">({{ group.roadmaps.length }})</span>
+                </div>
+
+                <div class="cards-grid">
+                  @for (crd of group.roadmaps; track crd.id) {
+                    <div class="roadmap-card" (click)="openRoadmap(crd)">
+                      <div class="card-header">
+                        <span class="card-icon">{{ crd.icon || '🗺️' }}</span>
+                        <div class="card-title-wrap">
+                          <h4 class="card-title">{{ crd.title }}</h4>
+                          <span class="card-role">[{{ crd.targetRole }}]</span>
+                        </div>
+                      </div>
+
+                      <p class="card-description">{{ crd.description }}</p>
+
+                      <div class="card-meta">
+                        <span class="card-skills-tag">⚡ {{ crd.nodes.length }} навичок • Tier I–V</span>
+                        @let p = getRoadmapProgress(crd);
+                        <span class="card-prog-tag" [class.has-prog]="p.completed > 0 || p.inProgress > 0">
+                          L{{ p.level }} • {{ p.completed }}/{{ p.total }} ({{ p.pct }}%)
+                        </span>
+                      </div>
+
+                      <div class="card-footer">
+                        <button class="card-enter-btn">
+                          {{ i18n.t().enterRoadmapBtn }} →
+                        </button>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            } @empty {
+              <div class="empty-roadmaps">
+                <p class="hint">{{ i18n.t().noRoadmapsFound }}</p>
+              </div>
+            }
+          </div>
         </div>
       }
 
@@ -154,63 +219,56 @@ import { Roadmap, RoadmapNode } from './models';
         <div class="skill-modal-backdrop" (click)="inspectNode.set(null)"></div>
         <div class="skill-modal" role="dialog">
           <div class="modal-header">
-            <div class="modal-header-main">
-              <span class="modal-icon">{{ node.icon }}</span>
-              <div>
-                <h3 class="modal-title">{{ node.title }}</h3>
-                <div class="modal-sub">
-                  <span class="badge">Tier {{ node.tier }}</span>
-                  <span class="badge-branch">{{ node.branch }}</span>
-                  <span class="status-badge" [class.badge-completed]="node.status === 'completed'" [class.badge-learning]="node.status === 'in_progress'" [class.badge-available]="node.status === 'available'" [class.badge-locked]="node.status === 'locked'">
-                    {{ getStatusLabel(node.status) }}
-                  </span>
-                </div>
-              </div>
+            <div class="modal-header-icon">{{ node.icon }}</div>
+            <div class="modal-header-text">
+              <span class="modal-tier-badge">TIER {{ node.tier }} • {{ node.branch }}</span>
+              <h3 class="modal-title">{{ node.title }}</h3>
             </div>
             <button class="modal-close" (click)="inspectNode.set(null)">✕</button>
           </div>
 
           <div class="modal-body">
-            <!-- Description -->
-            <p class="node-desc">{{ node.description }}</p>
+            <p class="node-full-desc">{{ node.description }}</p>
 
             @if (node.whyImportant) {
-              <div class="node-importance">
+              <div class="importance-box">
                 <span class="importance-label">💡 {{ i18n.t().whyImportantTitle }}</span>
-                <p>{{ node.whyImportant }}</p>
+                <p class="importance-text">{{ node.whyImportant }}</p>
               </div>
             }
 
-            <!-- Prerequisites Checklist -->
-            @if (node.prerequisites && node.prerequisites.length) {
-              <div class="node-prereqs">
-                <span class="section-label">🔗 {{ i18n.t().prerequisitesTitle }}</span>
-                <div class="prereqs-list">
+            <!-- Prerequisites Indicator -->
+            <div class="section-block">
+              <h4 class="section-title">{{ i18n.t().prerequisitesTitle }}</h4>
+              @if (node.prerequisites && node.prerequisites.length) {
+                <div class="prereq-list">
                   @for (pid of node.prerequisites; track pid) {
                     <div class="prereq-item" [class.met]="isPrereqMet(pid)">
-                      <span class="prereq-status-icon">{{ isPrereqMet(pid) ? '✅' : '🔒' }}</span>
+                      <span class="prereq-icon">{{ isPrereqMet(pid) ? '✅' : '🔒' }}</span>
                       <span class="prereq-name">{{ getNodeTitle(pid) }}</span>
                     </div>
                   }
                 </div>
-              </div>
-            }
+              } @else {
+                <div class="prereq-item met">
+                  <span class="prereq-icon">⚡</span>
+                  <span class="prereq-name">Базова фундаментальна навичка (Tier 1)</span>
+                </div>
+              }
+            </div>
 
             <!-- Topics Checklist -->
             @if (node.topics && node.topics.length) {
-              <div class="node-topics">
-                <span class="section-label">📋 {{ i18n.t().topicsChecklist }}</span>
+              <div class="section-block">
+                <h4 class="section-title">{{ i18n.t().topicsChecklist }}</h4>
                 <div class="topics-checklist">
                   @for (topic of node.topics; track topic) {
                     <label class="topic-row">
                       <input
                         type="checkbox"
                         [checked]="isTopicDone(node, topic)"
-                        [disabled]="node.status === 'locked'"
                         (change)="toggleTopic(node.id, topic)" />
-                      <span class="topic-text" [class.topic-checked]="isTopicDone(node, topic)">
-                        {{ topic }}
-                      </span>
+                      <span class="topic-text" [class.done]="isTopicDone(node, topic)">{{ topic }}</span>
                     </label>
                   }
                 </div>
@@ -219,10 +277,11 @@ import { Roadmap, RoadmapNode } from './models';
           </div>
 
           <!-- Actions Footer -->
-          <div class="modal-actions">
-            @if (node.status === 'locked') {
-              <span class="locked-warning">🔒 {{ i18n.t().skillLocked }}</span>
-            } @else {
+          <div class="modal-footer">
+            <div class="status-actions">
+              @if (node.status === 'locked') {
+                <span class="locked-hint">🔒 Виконайте передумови для розблокування</span>
+              }
               @if (node.status === 'available') {
                 <button class="action-btn btn-learn" (click)="setSkillStatus(node.id, 'in_progress')">
                   ⚡ {{ i18n.t().startLearning }}
@@ -238,7 +297,7 @@ import { Roadmap, RoadmapNode } from './models';
                   ↩️ {{ i18n.t().resetSkillProgress }}
                 </button>
               }
-            }
+            </div>
 
             <button class="action-btn btn-task" (click)="exportToTasks(node.id)" [title]="i18n.t().exportToTasksBtn">
               ➕ {{ i18n.t().exportToTasksBtn }}
@@ -290,24 +349,21 @@ import { Roadmap, RoadmapNode } from './models';
                 </button>
               </div>
             </div>
-
-            @if (store.generatingRoadmap()) {
-              <div class="generating-status">
-                <div class="spinner"></div>
-                <span>{{ i18n.t().generatingRoadmap }}</span>
-              </div>
-            }
           </div>
 
-          <div class="ai-modal-footer">
-            <button class="cancel-btn" [disabled]="store.generatingRoadmap()" (click)="aiModalOpen.set(false)">
+          <div class="modal-footer">
+            <button class="modal-cancel-btn" (click)="aiModalOpen.set(false)">
               {{ i18n.t().cancel }}
             </button>
             <button
-              class="generate-btn"
-              [disabled]="store.generatingRoadmap() || !goalInput.value.trim()"
+              class="ai-submit-btn"
+              [disabled]="store.generatingRoadmap()"
               (click)="generateFromGoal(goalInput.value)">
-              ✨ {{ i18n.t().generateAiRoadmap }}
+              @if (store.generatingRoadmap()) {
+                ⏳ {{ i18n.t().generatingRoadmap }}
+              } @else {
+                ✨ {{ i18n.t().generateAiRoadmap }}
+              }
             </button>
           </div>
         </div>
@@ -319,16 +375,82 @@ import { Roadmap, RoadmapNode } from './models';
 export class RoadmapComponent {
   readonly store = inject(TaskStore);
   readonly i18n = inject(I18nService);
-  private popup = inject(PopupService);
+  readonly popup = inject(PopupService);
 
   readonly inspectNode = signal<RoadmapNode | null>(null);
   readonly aiModalOpen = signal(false);
 
-  // Compute total nodes and completion
-  readonly allNodes = computed<RoadmapNode[]>(() => this.store.activeRoadmap()?.nodes || []);
+  // Frontpage filtering & search signals
+  readonly selectedCategory = signal<string | null>(null);
+  readonly searchQuery = signal<string>('');
+
+  /** Unique categories with roadmap count */
+  readonly categories = computed<{ name: string; count: number }[]>(() => {
+    const map = new Map<string, number>();
+    for (const r of this.store.roadmaps()) {
+      const cat = r.category || 'Загальні';
+      map.set(cat, (map.get(cat) || 0) + 1);
+    }
+    return Array.from(map.entries()).map(([name, count]) => ({ name, count }));
+  });
+
+  /** Filtered roadmaps according to category and search query */
+  readonly filteredRoadmaps = computed<Roadmap[]>(() => {
+    const all = this.store.roadmaps();
+    const cat = this.selectedCategory();
+    const q = this.searchQuery().trim().toLowerCase();
+
+    return all.filter((r) => {
+      if (cat && (r.category || 'Загальні') !== cat) {
+        return false;
+      }
+      if (q) {
+        const inTitle = r.title.toLowerCase().includes(q);
+        const inDesc = (r.description || '').toLowerCase().includes(q);
+        const inRole = (r.targetRole || '').toLowerCase().includes(q);
+        const inCat = (r.category || '').toLowerCase().includes(q);
+        if (!inTitle && !inDesc && !inRole && !inCat) return false;
+      }
+      return true;
+    });
+  });
+
+  /** Roadmaps grouped by category folder for the frontpage */
+  readonly groupedByCategory = computed<{ category: string; roadmaps: Roadmap[] }[]>(() => {
+    const list = this.filteredRoadmaps();
+    const groups = new Map<string, Roadmap[]>();
+
+    for (const rm of list) {
+      const cat = rm.category || 'Загальні';
+      const arr = groups.get(cat) || [];
+      arr.push(rm);
+      groups.set(cat, arr);
+    }
+
+    return Array.from(groups.entries()).map(([category, roadmaps]) => ({ category, roadmaps }));
+  });
+
+  // Current active roadmap nodes
+  readonly allNodes = computed<RoadmapNode[]>(() => {
+    return this.store.activeRoadmap()?.nodes || [];
+  });
+
+  readonly tiersList = computed<number[]>(() => {
+    const nodes = this.allNodes();
+    if (!nodes.length) return [1, 2, 3, 4, 5];
+    const tiers = Array.from(new Set(nodes.map((n) => n.tier || 1))).sort((a, b) => a - b);
+    return tiers.length ? tiers : [1, 2, 3, 4, 5];
+  });
+
   readonly totalNodesCount = computed(() => this.allNodes().length);
-  readonly completedCount = computed(() => this.allNodes().filter((n) => n.status === 'completed').length);
-  readonly inProgressNodes = computed(() => this.allNodes().filter((n) => n.status === 'in_progress'));
+
+  readonly completedCount = computed(() => {
+    return this.allNodes().filter((n) => n.status === 'completed').length;
+  });
+
+  readonly inProgressNodes = computed(() => {
+    return this.allNodes().filter((n) => n.status === 'in_progress');
+  });
 
   readonly completionPercentage = computed(() => {
     const total = this.totalNodesCount();
@@ -336,51 +458,74 @@ export class RoadmapComponent {
     return Math.round((this.completedCount() / total) * 100);
   });
 
-  // Calculate Level & Rank based on completed skills
   readonly userLevel = computed(() => {
     const done = this.completedCount();
-    return Math.min(5, Math.floor(done / 3) + 1);
+    return Math.max(1, done + 1);
   });
 
-  readonly tiersList = computed(() => {
-    const set = new Set<number>();
-    for (const n of this.allNodes()) {
-      set.add(n.tier || 1);
-    }
-    const arr = Array.from(set).sort((a, b) => a - b);
-    return arr.length ? arr : [1, 2, 3, 4, 5];
-  });
-
-  getNodesForTier(tier: number): RoadmapNode[] {
-    return this.allNodes().filter((n) => (n.tier || 1) === tier);
-  }
-
-  getTierName(tier: number): string {
-    const namesUk: Record<number, string> = {
-      1: 'Фундамент',
-      2: 'Базові навички',
-      3: 'Основні технології',
-      4: 'Спеціалізація',
-      5: 'Майстерність & HighLoad',
-    };
-    const namesEn: Record<number, string> = {
-      1: 'Foundation',
-      2: 'Core Skills',
-      3: 'Applied Tech',
-      4: 'Specialization',
-      5: 'Mastery & Scale',
-    };
-    const dict = this.i18n.lang() === 'uk' ? namesUk : namesEn;
-    return dict[tier] || `Tier ${tier}`;
-  }
-
-  onRoadmapSelect(id: string) {
-    if (!id) return;
-    this.store.selectRoadmap(id);
+  openRoadmap(rm: Roadmap) {
+    this.store.selectRoadmap(rm.id);
     this.inspectNode.set(null);
   }
 
+  backToCatalog() {
+    this.store.activeRoadmapId.set(null);
+    this.store.selectedSkillId.set(null);
+    this.inspectNode.set(null);
+  }
+
+  selectCategoryAndBack(cat: string) {
+    this.selectedCategory.set(cat);
+    this.backToCatalog();
+  }
+
+  getRoadmapProgress(rm: Roadmap): { total: number; completed: number; inProgress: number; pct: number; level: number } {
+    const nodes = rm.nodes || [];
+    const total = nodes.length;
+    const completed = nodes.filter((n) => n.status === 'completed').length;
+    const inProgress = nodes.filter((n) => n.status === 'in_progress').length;
+    const pct = total ? Math.round((completed / total) * 100) : 0;
+    const level = Math.max(1, completed + 1);
+    return { total, completed, inProgress, pct, level };
+  }
+
+  getTierName(tier: number): string {
+    switch (tier) {
+      case 1:
+        return 'Фундамент';
+      case 2:
+        return 'Базові інструменти';
+      case 3:
+        return 'Поглиблені навички';
+      case 4:
+        return 'Майстерність & Екосистема';
+      case 5:
+        return 'Архітектура & Highload';
+      default:
+        return `Рівень ${tier}`;
+    }
+  }
+
+  getNodesForTier(tier: number): RoadmapNode[] {
+    return this.allNodes().filter((n) => n.tier === tier);
+  }
+
+  getStatusText(status: string): string {
+    switch (status) {
+      case 'completed':
+        return this.i18n.t().skillCompleted;
+      case 'in_progress':
+        return this.i18n.t().skillInProgress;
+      case 'available':
+        return this.i18n.t().skillUnlocked;
+      case 'locked':
+      default:
+        return this.i18n.t().skillLocked;
+    }
+  }
+
   selectSkill(node: RoadmapNode) {
+    this.store.selectedSkillId.set(node.id);
     this.inspectNode.set(node);
   }
 
@@ -415,8 +560,7 @@ export class RoadmapComponent {
     if (!cur) return;
     const taskId = await this.store.exportSkillToTasks(cur.id, nodeId);
     if (taskId) {
-      await this.popup.alert(this.i18n.t().taskCreatedSuccess);
-      this.inspectNode.set(null);
+      await this.popup.alert(this.i18n.t().taskCreatedSuccess, 'info');
     }
   }
 
@@ -452,12 +596,5 @@ export class RoadmapComponent {
     } catch (e: any) {
       await this.popup.alert(e?.error?.error || 'Failed to generate roadmap', 'error');
     }
-  }
-
-  getStatusLabel(status: string): string {
-    if (status === 'completed') return this.i18n.t().skillCompleted;
-    if (status === 'in_progress') return this.i18n.t().skillInProgress;
-    if (status === 'available') return this.i18n.t().skillUnlocked;
-    return this.i18n.t().skillLocked;
   }
 }

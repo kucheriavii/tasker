@@ -6,6 +6,321 @@
   margin: 10px 0 30px;
 }
 
+/* Inside Roadmap Breadcrumbs */
+.inside-bar {
+  background: var(--bg, #fafafa);
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+}
+.roadmap-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.crumb-btn {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  color: var(--fg);
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.crumb-btn:hover {
+  background: var(--hover, #e2e8f0);
+}
+.cat-crumb {
+  color: #2563eb;
+  font-weight: 600;
+}
+.crumb-sep {
+  color: var(--muted);
+}
+.crumb-current {
+  color: var(--muted);
+  font-weight: 600;
+  max-width: 380px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.back-catalog-btn {
+  background: var(--bg, #fff);
+  border: 1px solid var(--line);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.back-catalog-btn:hover {
+  background: var(--hover, #f1f5f9);
+  border-color: #94a3b8;
+}
+.hero-cat-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #93c5fd;
+  background: rgba(37, 99, 235, 0.2);
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+
+/* Frontpage / Catalog View */
+.frontpage-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.frontpage-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  background: radial-gradient(circle at 10% 20%, #1e293b, #0f172a);
+  color: #f8fafc;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  flex-wrap: wrap;
+}
+.hero-left {
+  flex: 1;
+  min-width: 280px;
+}
+.frontpage-title {
+  margin: 0 0 6px 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: #f1f5f9;
+}
+.frontpage-desc {
+  margin: 0;
+  font-size: 13px;
+  color: #94a3b8;
+  line-height: 1.5;
+  max-width: 700px;
+}
+.hero-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Frontpage Toolbar: Search & Category Chips */
+.frontpage-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.search-input {
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 30px 8px 12px;
+  border: 1px solid var(--line);
+  background: var(--bg, #fff);
+  border-radius: 3px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.search-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+.clear-search-btn {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.clear-search-btn:hover {
+  color: var(--fg);
+}
+
+.category-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.category-chip {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  background: var(--bg, #fff);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+  color: var(--fg);
+  transition: all 0.15s ease;
+}
+.category-chip:hover {
+  background: var(--hover, #f1f5f9);
+  border-color: #94a3b8;
+}
+.category-chip.active {
+  background: #1e3a8a;
+  color: #fff;
+  border-color: #1e3a8a;
+}
+
+/* Categories List & Folders */
+.categories-list {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.category-folder-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.folder-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--line);
+}
+.folder-icon {
+  font-size: 18px;
+}
+.folder-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--fg);
+}
+.folder-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* Cards Grid */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+.roadmap-card {
+  background: var(--bg, #fff);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.roadmap-card:hover {
+  transform: translateY(-2px);
+  border-color: #3b82f6;
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.12);
+}
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.card-icon {
+  font-size: 28px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.card-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.card-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--fg);
+  line-height: 1.3;
+}
+.card-role {
+  font-size: 11px;
+  font-weight: 600;
+  color: #2563eb;
+}
+.card-description {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--line);
+  flex-wrap: wrap;
+}
+.card-skills-tag {
+  color: var(--muted);
+  font-weight: 600;
+}
+.card-prog-tag {
+  color: var(--muted);
+  background: var(--hover, #f1f5f9);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+.card-prog-tag.has-prog {
+  background: rgba(34, 197, 94, 0.15);
+  color: #16a34a;
+}
+.card-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+.card-enter-btn {
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+  cursor: pointer;
+  padding: 0;
+}
+.roadmap-card:hover .card-enter-btn {
+  text-decoration: underline;
+}
+
 /* Top Control Bar */
 .roadmap-topbar {
   display: flex;

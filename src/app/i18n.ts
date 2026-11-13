@@ -179,6 +179,16 @@ export const DICT = {
     roadmapLearnerBadge: '⚔️ Режим учня',
     roadmapPersonalProgressHint: 'Ваш особистий прогрес фіксується окремо в базі даних',
     roadmapAdminOnlyCreate: 'Створювати та видаляти карти розвитку може лише адміністратор.',
+    roadmapFrontpageTitle: 'Карти розвитку навичок',
+    roadmapFrontpageDesc: 'Оберіть напрямок та занурюйтесь у дерево навичок у стилі Diablo 2. Відстежуйте власний рівень та опановуйте технології крок за кроком.',
+    allCategories: 'Всі категорії',
+    searchRoadmapsPlaceholder: 'Пошук роадмапу (DevOps, React, Python)...',
+    enterRoadmapBtn: 'Зайти всередину ⚔️',
+    backToRoadmaps: '← Всі роадмапи',
+    skillsCountLabel: (c: number) => `${c} навичок`,
+    tiersRangeLabel: 'Tier I–V',
+    categoryFolderCount: (name: string, count: number) => `📁 ${name} (${count})`,
+    noRoadmapsFound: 'Жодної карти розвитку не знайдено',
 
     // Popups / dialogs
     confirmTitle: 'підтвердження',
@@ -408,6 +418,16 @@ export const DICT = {
     roadmapLearnerBadge: '⚔️ Learner mode',
     roadmapPersonalProgressHint: 'Your personal progress is tracked individually in the database',
     roadmapAdminOnlyCreate: 'Only administrators can create or delete roadmaps.',
+    roadmapFrontpageTitle: 'Skill Development Roadmaps',
+    roadmapFrontpageDesc: 'Choose a track and dive into a Diablo 2-style skill tree. Track your personal level and master technologies step by step.',
+    allCategories: 'All Categories',
+    searchRoadmapsPlaceholder: 'Search roadmaps (DevOps, React, Python)...',
+    enterRoadmapBtn: 'Enter tree ⚔️',
+    backToRoadmaps: '← All roadmaps',
+    skillsCountLabel: (c: number) => `${c} skills`,
+    tiersRangeLabel: 'Tier I–V',
+    categoryFolderCount: (name: string, count: number) => `📁 ${name} (${count})`,
+    noRoadmapsFound: 'No roadmaps found',
 
     // Popups / dialogs
     confirmTitle: 'confirmation',

@@ -19,6 +19,8 @@ export const DEVOPS_ROADMAP_TEMPLATE = {
   "title": "DevOps Інженер: Дерево розвитку",
   "description": "Покрокова карта прокачки навичок від основ Linux та мереж до Kubernetes, CI/CD, GitOps та хмарної архітектури.",
   "targetRole": "DevOps Engineer",
+  "category": "Інфраструктура & Хмари",
+  "icon": "🐧",
   "branches": [
     "Linux & Системи",
     "Мережі & Безпека",
@@ -323,6 +325,8 @@ export const FRONTEND_ROADMAP_TEMPLATE = {
   "title": "Frontend Розробник (React / TypeScript / Web)",
   "description": "Покрокова карта розвитку сучасного фронтенд-інженера від основ HTML/CSS та чистого JS до React, TypeScript, Next.js та оптимізації продуктивності.",
   "targetRole": "Frontend Developer",
+  "category": "Розробка",
+  "icon": "🎨",
   "branches": [
     "Web Основи & Стилі",
     "JavaScript & TypeScript",
@@ -578,6 +582,8 @@ export const BACKEND_ROADMAP_TEMPLATE = {
   "title": "Backend Розробник (Node.js / Python / Microservices)",
   "description": "Покрокова карта розвитку інженера бекенду від алгоритмів та реляційних баз даних до асинхронних черг, кешування Redis, gRPC та мікросервісів.",
   "targetRole": "Backend Developer",
+  "category": "Розробка",
+  "icon": "⚙️",
   "branches": [
     "Основи & Мови",
     "Бази Даних & Сховища",
@@ -828,6 +834,8 @@ export const QA_AUTOMATION_ROADMAP_TEMPLATE = {
   "title": "QA Automation Інженер (Playwright / Python / CI/CD)",
   "description": "Покрокова карта прокачки інженера з автоматизації тестування від тест-дизайну та API тестування до сучасних E2E фреймворків, навантажувальних тестів та CI/CD.",
   "targetRole": "QA Automation Engineer",
+  "category": "Якість & Тестування",
+  "icon": "🧪",
   "branches": [
     "Теорія & Основи",
     "Програмування для QA",
@@ -1061,6 +1069,8 @@ export const AI_ML_ROADMAP_TEMPLATE = {
   "title": "AI & Machine Learning Інженер (Python / PyTorch / LLM)",
   "description": "Покрокова карта розвитку фахівця зі штучного інтелекту: від математичного базису та Pandas/Scikit-Learn до глибокого навчання (PyTorch), LLM, RAG та MLOps.",
   "targetRole": "AI & Machine Learning Engineer",
+  "category": "ШІ & Data Science",
+  "icon": "🧠",
   "branches": [
     "Математика & Data Science",
     "Класичний Machine Learning",
@@ -1275,6 +1285,8 @@ export const CYBERSECURITY_ROADMAP_TEMPLATE = {
   "title": "Cybersecurity & AppSec Спеціаліст (OWASP / DevSecOps)",
   "description": "Покрокова карта розвитку фахівця з кібербезпеки: від мережевого аудиту та криптографії до пошуку веб-вразливостей OWASP, DevSecOps та реагування на інциденти.",
   "targetRole": "Cybersecurity Specialist",
+  "category": "Кібербезпека",
+  "icon": "🛡️",
   "branches": [
     "Мережі & Системи",
     "Криптографія & Захист",
@@ -1573,6 +1585,8 @@ export function registerRoadmap({ route, send, readJson, q, tx, getUserId, isAdm
         completedTopics: [],
       }));
       const nodesJson = JSON.stringify({
+        category: t.category || 'Загальні',
+        icon: t.icon || '🗺️',
         branches: t.branches,
         nodes: cleanNodes,
       });
@@ -1623,6 +1637,8 @@ export function registerRoadmap({ route, send, readJson, q, tx, getUserId, isAdm
         title: r.title,
         description: r.description,
         targetRole: r.target_role,
+        category: parsed.category || 'Загальні',
+        icon: parsed.icon || '🗺️',
         branches: parsed.branches || [],
         nodes: parsed.nodes || [],
         createdAt: r.created_at,
@@ -1655,6 +1671,8 @@ export function registerRoadmap({ route, send, readJson, q, tx, getUserId, isAdm
       title: row.title,
       description: row.description,
       targetRole: row.target_role,
+      category: parsed.category || 'Загальні',
+      icon: parsed.icon || '🗺️',
       branches: parsed.branches || [],
       nodes: parsed.nodes || [],
       createdAt: row.created_at,
@@ -1675,6 +1693,8 @@ export function registerRoadmap({ route, send, readJson, q, tx, getUserId, isAdm
     const title = String(body.title || 'Новий роадмап').trim();
     const description = String(body.description || '').trim();
     const targetRole = String(body.targetRole || title).trim();
+    const category = String(body.category || 'Загальні').trim();
+    const icon = String(body.icon || '🗺️').trim();
     const branches = Array.isArray(body.branches) ? body.branches : [];
     const rawNodes = Array.isArray(body.nodes) ? body.nodes : [];
 
@@ -1686,7 +1706,7 @@ export function registerRoadmap({ route, send, readJson, q, tx, getUserId, isAdm
     }));
     const nodes = refreshSkillStates(cleanNodes);
 
-    const nodesJson = JSON.stringify({ branches, nodes });
+    const nodesJson = JSON.stringify({ category, icon, branches, nodes });
     await q('INSERT INTO roadmaps (id, user_id, title, description, target_role, nodes_json) VALUES (?,?,?,?,?,?)').run(
       id, userId, title, description, targetRole, nodesJson,
     );
@@ -1697,6 +1717,8 @@ export function registerRoadmap({ route, send, readJson, q, tx, getUserId, isAdm
       title,
       description,
       targetRole,
+      category,
+      icon,
       branches,
       nodes,
     });
@@ -1765,6 +1787,8 @@ export function registerRoadmap({ route, send, readJson, q, tx, getUserId, isAdm
         title: existing.title,
         description: existing.description,
         targetRole: existing.target_role,
+        category: parsed.category || 'Загальні',
+        icon: parsed.icon || '🗺️',
         branches: parsed.branches || [],
         nodes: parsed.nodes || [],
         updatedAt: nowStr,
@@ -1784,8 +1808,10 @@ export function registerRoadmap({ route, send, readJson, q, tx, getUserId, isAdm
     const branches = Array.isArray(body.branches) ? body.branches : parsed.branches;
     let nodes = Array.isArray(body.nodes) ? body.nodes : parsed.nodes;
 
+    const category = body.category !== undefined ? String(body.category).trim() : (parsed.category || 'Загальні');
+    const icon = body.icon !== undefined ? String(body.icon).trim() : (parsed.icon || '🗺️');
     nodes = refreshSkillStates(nodes);
-    const nodesJson = JSON.stringify({ branches, nodes });
+    const nodesJson = JSON.stringify({ category, icon, branches, nodes });
     const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
     await q('UPDATE roadmaps SET title=?, description=?, target_role=?, nodes_json=?, updated_at=? WHERE id=?').run(
@@ -1797,6 +1823,8 @@ export function registerRoadmap({ route, send, readJson, q, tx, getUserId, isAdm
       title,
       description,
       targetRole,
+      category,
+      icon,
       branches,
       nodes,
       updatedAt: nowStr,
@@ -1917,7 +1945,11 @@ export function registerRoadmap({ route, send, readJson, q, tx, getUserId, isAdm
     }));
     const nodes = refreshSkillStates(cleanNodes);
 
+    const category = String(generated.category || matched?.category || 'Загальні').trim();
+    const icon = String(generated.icon || matched?.icon || '✨').trim();
     const nodesJson = JSON.stringify({
+      category,
+      icon,
       branches: generated.branches || [],
       nodes,
     });
@@ -1932,6 +1964,8 @@ export function registerRoadmap({ route, send, readJson, q, tx, getUserId, isAdm
       title: generated.title,
       description: generated.description || '',
       targetRole: generated.targetRole || prompt,
+      category,
+      icon,
       branches: generated.branches || [],
       nodes,
     });

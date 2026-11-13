@@ -90,3 +90,30 @@ export const DEBUG_PROFILES: DebugProfile[] = [
   { id: 'admin', name: 'Адмін', role: 'admin', avatar: '👑' },
   { id: 'user', name: 'Користувач', role: 'user', avatar: '👤' },
 ];
+
+export interface RoadmapNode {
+  id: string;
+  title: string;
+  icon: string;
+  tier: number;
+  branch: string;
+  description: string;
+  whyImportant?: string;
+  status: 'locked' | 'available' | 'in_progress' | 'completed';
+  prerequisites: string[];
+  topics: string[];
+  completedTopics?: string[];
+  resources?: { title: string; url?: string }[];
+}
+
+export interface Roadmap {
+  id: string;
+  userId?: string | null;
+  title: string;
+  description: string;
+  targetRole: string;
+  branches: string[];
+  nodes: RoadmapNode[];
+  createdAt?: string;
+  updatedAt?: string;
+}

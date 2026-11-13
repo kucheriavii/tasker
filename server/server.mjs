@@ -8,6 +8,7 @@ import { initDb, q, tx, nextPos } from './db.mjs';
 import { registerImport } from './ai-import.mjs';
 import { registerFeatures } from './features.mjs';
 import { registerAuth, resolveSessionUser } from './auth.mjs';
+import { registerRoadmap } from './roadmap.mjs';
 
 // minimal .env loader (no dependencies); must run before modules read process.env
 const here = dirname(fileURLToPath(import.meta.url));
@@ -485,6 +486,7 @@ route('DELETE', '/api/statuses/:id', async (req, res, { id }) => {
 registerImport({ route, send, readBody, readJson, q, tx, nextPos, maxBody: MAX_IMAGE * 4, requireAdmin, getUserId, isAdmin });
 registerFeatures({ route, send, readJson, q, tx, nextPos, descendants, requireAdmin, getRootTask, getUserId, isAdmin });
 registerAuth({ route, send, readJson, q, tx });
+registerRoadmap({ route, send, readJson, q, tx, getUserId, isAdmin });
 
 // Static file serving for production (Single Page Application fallback to index.html)
 const MIME_TYPES = {

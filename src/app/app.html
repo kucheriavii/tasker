@@ -4,6 +4,7 @@
       <h1 (click)="store.openId.set(null); panel.set('none'); closeMenu()" style="cursor:pointer">&gt; tasker<span class="cursor">_</span></h1>
       <button class="brand-tab" [class.ok]="tab() === 'task' && !store.open() && panel() === 'none'" (click)="switchTab('task')" [title]="i18n.t().tasksDesc">[{{ i18n.t().tasks }}:{{ store.tree().length }}]</button>
       <button class="brand-tab" [class.ok]="tab() === 'book' && !store.open() && panel() === 'none'" (click)="switchTab('book')" [title]="i18n.t().booksDesc">[{{ i18n.t().books }}:{{ store.books().length }}]</button>
+      <button class="brand-tab" [class.ok]="tab() === 'roadmap' && !store.open() && panel() === 'none'" (click)="switchTab('roadmap')" [title]="i18n.t().roadmapDesc">[{{ i18n.t().roadmap }}:{{ store.roadmaps().length }}]</button>
     </div>
     <div class="nav-btns">
       @if (!store.authUser()) {
@@ -108,6 +109,10 @@
         <button class="mobile-nav-item" [class.ok]="tab() === 'book' && !store.open() && panel() === 'none'" (click)="switchTabMobile('book')">
           <span class="m-title">[{{ i18n.t().books }}]</span>
           <span class="m-badge">{{ store.books().length }}</span>
+        </button>
+        <button class="mobile-nav-item" [class.ok]="tab() === 'roadmap' && !store.open() && panel() === 'none'" (click)="switchTabMobile('roadmap')">
+          <span class="m-title">[{{ i18n.t().roadmap }}]</span>
+          <span class="m-badge">{{ store.roadmaps().length }}</span>
         </button>
       </div>
 
@@ -462,6 +467,8 @@
         </form>
       }
     </section>
+  } @else if (tab() === 'roadmap') {
+    <app-roadmap />
   } @else {
     @if (tab() === 'book') {
       <div class="book-filters">

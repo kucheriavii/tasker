@@ -6,10 +6,11 @@ import { TaskStore } from './task-store';
 import { Progress } from './progress';
 import { I18nService } from './i18n';
 import { DebugProfile } from './models';
+import { RoadmapComponent } from './roadmap';
 
 @Component({
   selector: 'app-root',
-  imports: [TaskItem, Progress, ImportPanel, PopupModal],
+  imports: [TaskItem, Progress, ImportPanel, PopupModal, RoadmapComponent],
   templateUrl: './app.html',
   styleUrl: './app.css',
   host: { '(window:paste)': 'onPaste($event)' },
@@ -18,8 +19,8 @@ export class App {
   readonly store = inject(TaskStore);
   readonly popup = inject(PopupService);
   readonly i18n = inject(I18nService);
-  /** Active top-level tab: 'task' = short-term tasks, 'book' = long-term books/courses. */
-  readonly tab = signal<'task' | 'book'>('task');
+  /** Active top-level tab: 'task' = short-term tasks, 'book' = long-term books/courses, 'roadmap' = Diablo-style skill tree. */
+  readonly tab = signal<'task' | 'book' | 'roadmap'>('task');
   readonly panel = signal<'none' | 'statuses' | 'trash' | 'import' | 'purgatory'>('none');
   readonly menuOpen = signal(false);
   readonly profileMenuOpen = signal(false);
@@ -120,7 +121,7 @@ export class App {
     });
   }
 
-  switchTab(t: 'task' | 'book') {
+  switchTab(t: 'task' | 'book' | 'roadmap') {
     this.tab.set(t);
     this.panel.set('none');
     this.store.openId.set(null);
@@ -169,7 +170,7 @@ export class App {
     this.menuOpen.set(false);
   }
 
-  switchTabMobile(t: 'task' | 'book') {
+  switchTabMobile(t: 'task' | 'book' | 'roadmap') {
     this.switchTab(t);
     this.closeMenu();
   }
@@ -309,7 +310,7 @@ export class App {
     this.store.draggedId.set(null);
     if (!dragged) return;
     e.preventDefault();
-    this.store.moveTask(dragged, null, 'after', this.tab());
+    this.store.moveTask(dragged, null, 'after', this.tab() === 'book' ? 'book' : 'task');
   }
 
   /** Ctrl+V of an image while a task is open attaches it. */

@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { ApiData, AuthStatus, AuthUser, DEBUG_PROFILES, DebugProfile, LibraryItem, Status, Task, TaskRow } from './models';
+import { ApiData, AuthStatus, AuthUser, DEBUG_PROFILES, DebugProfile, LibraryItem, Roadmap, RoadmapNode, Status, Task, TaskRow } from './models';
 
 const ADMIN_KEY_STORAGE = 'tasker.adminKey';
 const USER_ID_STORAGE = 'tasker.userId';
@@ -157,6 +157,28 @@ export class TaskStore {
   readonly purgatory = computed<TaskRow[]>(() =>
     this.data().tasks.filter((t) => t.deletedAt && t.kind === 'book' && t.parentId === null).sort((a, b) => b.deletedAt!.localeCompare(a.deletedAt!)));
 
+  /** Roadmaps (Diablo-style skill trees) */
+  readonly roadmaps = signal<Roadmap[]>([]);
+  readonly activeRoadmapId = signal<string | null>(null);
+  readonly activeRoadmap = computed<Roadmap | null>(() => {
+    const list = this.roadmaps();
+    if (!list.length) return null;
+    const curId = this.activeRoadmapId();
+    if (curId) {
+      const found = list.find((r) => r.id === curId);
+      if (found) return found;
+    }
+    return list[0];
+  });
+  readonly selectedSkillId = signal<string | null>(null);
+  readonly selectedSkill = computed<RoadmapNode | null>(() => {
+    const rm = this.activeRoadmap();
+    const sid = this.selectedSkillId();
+    if (!rm || !sid) return null;
+    return rm.nodes.find((n) => n.id === sid) ?? null;
+  });
+  readonly generatingRoadmap = signal(false);
+
   readonly open = computed<Task | null>(() => {
     const id = this.openId();
     return id ? (this.index().get(id) ?? null) : null;
@@ -182,6 +204,7 @@ export class TaskStore {
     this.checkAuth().then(() => {
       this.refresh();
       this.refreshLibrary();
+      this.loadRoadmaps();
     });
   }
 
@@ -396,4 +419,83 @@ export class TaskStore {
   }
   moveStatus(id: string, dir: -1 | 1) { return this.call(firstValueFrom(this.http.post(`/api/statuses/${id}/move`, { dir }, this.adminHeaders()))); }
   removeStatus(id: string) { return this.call(firstValueFrom(this.http.delete(`/api/statuses/${id}`, this.adminHeaders()))); }
+
+  // ---- roadmaps (Diablo-style skill trees) ----
+  async loadRoadmaps() {
+    try {
+      const res = await firstValueFrom(this.http.get<{ roadmaps: Roadmap[] }>('/api/roadmaps', this.reqHeaders()));
+      this.roadmaps.set(res?.roadmaps || []);
+      if (!this.activeRoadmapId() && res?.roadmaps?.length) {
+        this.activeRoadmapId.set(res.roadmaps[0].id);
+      }
+    } catch {}
+  }
+
+  selectRoadmap(id: string) {
+    this.activeRoadmapId.set(id);
+    this.selectedSkillId.set(null);
+  }
+
+  async generateRoadmap(prompt: string, language: 'uk' | 'en' = 'uk') {
+    this.generatingRoadmap.set(true);
+    try {
+      const res = await firstValueFrom(this.http.post<Roadmap>('/api/roadmaps/generate', { prompt, language }, this.reqHeaders()));
+      if (res?.id) {
+        this.roadmaps.update((list) => [res, ...list.filter((r) => r.id !== res.id)]);
+        this.activeRoadmapId.set(res.id);
+        this.selectedSkillId.set(null);
+      }
+      return res;
+    } finally {
+      this.generatingRoadmap.set(false);
+    }
+  }
+
+  async updateSkillStatus(nodeId: string, status: 'locked' | 'available' | 'in_progress' | 'completed') {
+    const cur = this.activeRoadmap();
+    if (!cur) return;
+    try {
+      const res = await firstValueFrom(this.http.patch<Roadmap>(`/api/roadmaps/${cur.id}`, { nodeId, status }, this.reqHeaders()));
+      if (res?.nodes) {
+        this.roadmaps.update((list) => list.map((r) => (r.id === cur.id ? { ...r, nodes: res.nodes } : r)));
+      }
+    } catch (e: any) {
+      this.error.set(e?.error?.error || 'failed to update skill');
+    }
+  }
+
+  async toggleSkillTopic(nodeId: string, topic: string) {
+    const cur = this.activeRoadmap();
+    if (!cur) return;
+    try {
+      const res = await firstValueFrom(this.http.patch<Roadmap>(`/api/roadmaps/${cur.id}`, { nodeId, toggleTopic: topic }, this.reqHeaders()));
+      if (res?.nodes) {
+        this.roadmaps.update((list) => list.map((r) => (r.id === cur.id ? { ...r, nodes: res.nodes } : r)));
+      }
+    } catch (e: any) {
+      this.error.set(e?.error?.error || 'failed to toggle topic');
+    }
+  }
+
+  async deleteRoadmap(id: string) {
+    try {
+      await firstValueFrom(this.http.delete(`/api/roadmaps/${id}`, this.reqHeaders()));
+      this.roadmaps.update((list) => list.filter((r) => r.id !== id));
+      if (this.activeRoadmapId() === id) {
+        const remaining = this.roadmaps();
+        this.activeRoadmapId.set(remaining[0]?.id ?? null);
+      }
+      this.selectedSkillId.set(null);
+    } catch {}
+  }
+
+  async exportSkillToTasks(roadmapId: string, nodeId: string): Promise<string | null> {
+    try {
+      const res = await firstValueFrom(this.http.post<{ taskId: string }>(`/api/roadmaps/${roadmapId}/export-to-tasks`, { nodeId }, this.reqHeaders()));
+      await this.refresh();
+      return res?.taskId ?? null;
+    } catch {
+      return null;
+    }
+  }
 }

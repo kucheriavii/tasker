@@ -175,6 +175,18 @@ export async function initDb() {
       );
       CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
+      CREATE TABLE IF NOT EXISTS roadmaps (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        target_role TEXT NOT NULL DEFAULT '',
+        nodes_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS')),
+        updated_at TEXT NOT NULL DEFAULT (TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_roadmaps_user ON roadmaps(user_id);
+
       INSERT INTO users (id, email, name, avatar_url, provider, role)
       VALUES
         ('admin', 'admin@tasker.local', 'Адмін', '👑', 'local', 'admin'),
@@ -276,6 +288,18 @@ export async function initDb() {
       expires_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+    CREATE TABLE IF NOT EXISTS roadmaps (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      target_role TEXT NOT NULL DEFAULT '',
+      nodes_json TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_roadmaps_user ON roadmaps(user_id);
 
     INSERT OR IGNORE INTO users (id, email, name, avatar_url, provider, role)
     VALUES

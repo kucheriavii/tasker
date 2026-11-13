@@ -84,7 +84,7 @@ async function getData(userId) {
        UNION ALL
        SELECT t.id FROM tasks t JOIN book_tree b ON t.parent_id = b.id
      )
-     SELECT id,parent_id,title,description,status_id,collapsed,deleted_at,kind,due_at,tags,user_id
+     SELECT id,parent_id,title,description,status_id,collapsed,deleted_at,kind,due_at,tags,characteristic,user_id
      FROM tasks
      WHERE id IN (SELECT id FROM book_tree) OR user_id=?
      ORDER BY pos`,
@@ -94,6 +94,7 @@ async function getData(userId) {
     kind: (t.kind === 'book' || !t.user_id) ? 'book' : 'task',
     dueAt: t.due_at || null,
     tags: t.tags || '',
+    characteristic: t.characteristic || (t.kind === 'book' ? 'book' : ''),
     userId: t.user_id || null,
     imageIds: byTask.get(t.id) ?? [],
   }));
@@ -152,7 +153,7 @@ route('GET', '/api/data', async (req, res) => send(res, 200, await getData(getUs
 // ---- tasks ----
 route('POST', '/api/tasks', async (req, res) => {
   const userId = getUserId(req, res);
-  const { parentId = null, title = '', kind = 'task', dueAt = null, tags = '' } = await readJson(req);
+  const { parentId = null, title = '', kind = 'task', dueAt = null, tags = '', characteristic = '' } = await readJson(req);
   let root = null;
   let parentTask = null;
   if (parentId) {
@@ -177,8 +178,9 @@ route('POST', '/api/tasks', async (req, res) => {
         ? await nextPos('tasks', 'parent_id IS NULL AND kind=?', 'book')
         : await nextPos('tasks', 'parent_id IS NULL AND kind=? AND user_id=?', 'task', userId));
   const rowUser = k === 'book' ? null : (parentId ? parentTask.user_id || userId : userId);
-  await q('INSERT INTO tasks (id,parent_id,title,status_id,pos,kind,due_at,tags,user_id) VALUES (?,?,?,?,?,?,?,?,?)').run(
-    id, parentId, title.trim(), st.id, pos, k, dueAt || null, String(tags || '').trim(), rowUser,
+  const charVal = k === 'book' ? (characteristic || 'book') : (characteristic || '');
+  await q('INSERT INTO tasks (id,parent_id,title,status_id,pos,kind,due_at,tags,characteristic,user_id) VALUES (?,?,?,?,?,?,?,?,?,?)').run(
+    id, parentId, title.trim(), st.id, pos, k, dueAt || null, String(tags || '').trim(), charVal, rowUser,
   );
   send(res, 201, { id });
 });
@@ -272,7 +274,7 @@ route('PATCH', '/api/tasks/:id', async (req, res, { id }) => {
   } else if (task.user_id && task.user_id !== userId && !isAdmin(req)) {
     return send(res, 403, { error: 'forbidden' });
   }
-  const map = { title: 'title', description: 'description', statusId: 'status_id', collapsed: 'collapsed', kind: 'kind', dueAt: 'due_at', tags: 'tags' };
+  const map = { title: 'title', description: 'description', statusId: 'status_id', collapsed: 'collapsed', kind: 'kind', dueAt: 'due_at', tags: 'tags', characteristic: 'characteristic' };
   const sets = []; const vals = [];
   for (const [k, col] of Object.entries(map)) if (k in b) {
     sets.push(`${col}=?`); vals.push(k === 'collapsed' ? (b[k] ? 1 : 0) : b[k]);

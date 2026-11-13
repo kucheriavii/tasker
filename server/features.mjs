@@ -129,7 +129,7 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
   // ---- Clone book/task to tasks tab (available to any user) ----
   route('POST', '/api/tasks/:id/clone-to-tasks', async (req, res, { id }) => {
     const userId = getUserId ? getUserId(req, res) : null;
-    const src = await q('SELECT id,parent_id,title,description,kind,tags FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
+    const src = await q('SELECT id,parent_id,title,description,kind,tags,characteristic FROM tasks WHERE id=? AND deleted_at IS NULL').get(id);
     if (!src) return send(res, 404, { error: 'task not found' });
     const st = await q('SELECT id FROM statuses ORDER BY pos LIMIT 1').get();
 
@@ -138,8 +138,8 @@ export function registerFeatures({ route, send, readJson, q, tx, nextPos, descen
       const pos = userId
         ? await nextPos('tasks', 'parent_id IS NULL AND kind=? AND user_id=?', 'task', userId)
         : await nextPos('tasks', 'parent_id IS NULL AND kind=?', 'task');
-      await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind,tags,user_id) VALUES (?,?,?,?,?,?,?,?,?)').run(
-        rid, null, src.title, src.description || '', st.id, pos, 'task', src.tags || '', userId,
+      await q('INSERT INTO tasks (id,parent_id,title,description,status_id,pos,kind,tags,characteristic,user_id) VALUES (?,?,?,?,?,?,?,?,?,?)').run(
+        rid, null, src.title, src.description || '', st.id, pos, 'task', src.tags || '', src.characteristic || '', userId,
       );
 
       const srcImgs = await q('SELECT name,mime,data FROM images WHERE task_id=?').all(src.id);

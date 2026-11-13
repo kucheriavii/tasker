@@ -46,6 +46,48 @@ export class App {
     return profile.avatar || (profile.role === 'admin' ? '👑' : '👤');
   }
 
+  formatCharName(c?: string | null): string {
+    const val = (c || 'book').trim().toLowerCase();
+    if (val === 'book') return '📖 ' + this.i18n.t().charBook;
+    if (val === 'course') return '🎓 ' + this.i18n.t().charCourse;
+    return '🔖 ' + val;
+  }
+
+  countBooksWithChar(c: string): number {
+    const target = c.trim().toLowerCase();
+    return this.store.books().filter((b) => (b.characteristic || 'book').trim().toLowerCase() === target).length;
+  }
+
+  adminAddCustomChar() {
+    const val = prompt(this.i18n.t().enterCustomChar, '');
+    if (val && val.trim()) {
+      this.store.selectedChar.set(val.trim().toLowerCase());
+    }
+  }
+
+  onAddCharChange(e: Event, selectEl: HTMLSelectElement) {
+    if (selectEl.value === '__custom__') {
+      const val = prompt(this.i18n.t().enterCustomChar, '');
+      if (val && val.trim()) {
+        const clean = val.trim().toLowerCase();
+        const opt = document.createElement('option');
+        opt.value = clean;
+        opt.textContent = '🔖 ' + clean;
+        opt.selected = true;
+        selectEl.insertBefore(opt, selectEl.lastElementChild);
+      } else {
+        selectEl.value = 'course';
+      }
+    }
+  }
+
+  async promptCustomChar(taskId: string, currentChar?: string) {
+    const val = prompt(this.i18n.t().enterCustomChar, currentChar || '');
+    if (val !== null && val.trim()) {
+      await this.store.updateTask(taskId, { characteristic: val.trim().toLowerCase() });
+    }
+  }
+
   readonly activeList = computed(() =>
     this.tab() === 'book' ? this.store.filteredBooks() : this.store.tree());
 

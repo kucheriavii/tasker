@@ -44,6 +44,17 @@ import { I18nService } from './i18n';
               <input #ed class="title-edit" [value]="task().title" autofocus
                 (keydown.enter)="save(ed.value, dueEd.value)" (keydown.escape)="editing.set(false)" />
               <div class="edit-tools">
+                @if (task().rootKind === 'book' && task().parentId === null && store.isAdmin()) {
+                  <select class="char-edit-select" [value]="editChar()" (change)="editChar.set($any($event.target).value)">
+                    <option value="course">🎓 {{ i18n.t().charCourse }}</option>
+                    <option value="book">📖 {{ i18n.t().charBook }}</option>
+                    @for (c of store.allCharacteristics(); track c) {
+                      @if (c !== 'book' && c !== 'course') {
+                        <option [value]="c">🔖 {{ c }}</option>
+                      }
+                    }
+                  </select>
+                }
                 <input #dueEd type="datetime-local" class="due-in" [value]="task().dueAt || ''" [title]="i18n.t().deadlineTitle" />
                 <div class="edit-btns">
                   <button class="ok" (click)="save(ed.value, dueEd.value)">{{ i18n.t().ok }}</button>
@@ -56,8 +67,17 @@ import { I18nService } from './i18n';
           }
         </div>
 
-        @if (!editing() && (task().dueAt || task().description || task().imageIds.length || parsedTags().length)) {
+        @if (!editing() && (task().dueAt || task().description || task().imageIds.length || parsedTags().length || (task().rootKind === 'book' && task().parentId === null))) {
           <div class="badges">
+            @if (task().rootKind === 'book' && task().parentId === null) {
+              <span class="char-badge"
+                [class.badge-course]="(task().characteristic || 'book') === 'course'"
+                [class.badge-book]="(task().characteristic || 'book') === 'book'"
+                [title]="i18n.t().filterByChar"
+                (click)="$event.stopPropagation(); onCharClick(task().characteristic || 'book')">
+                {{ formatCharLabel(task().characteristic || 'book') }}
+              </span>
+            }
             @if (task().dueAt) {
               <span class="due-badge" [class.overdue]="store.isOverdue(task())" [title]="i18n.t().duePrefix + formatDue(task().dueAt!)">
                 {{ store.isOverdue(task()) ? '! ' + i18n.t().duePrefix : i18n.t().duePrefix }}{{ formatDue(task().dueAt!) }}
@@ -97,7 +117,7 @@ import { I18nService } from './i18n';
                 </button>
               }
               @if (task().rootKind !== 'book' || store.isAdmin()) {
-                <button class="icon" (click)="editing.set(true)">{{ i18n.t().edit }}</button>
+                <button class="icon" (click)="startEdit()">{{ i18n.t().edit }}</button>
                 <button class="icon" (click)="adding.set(!adding())">{{ i18n.t().addSubtaskBtn }}</button>
                 <button class="icon danger" (click)="remove()" [title]="i18n.t().deleteBtn">{{ i18n.t().deleteBtn }}</button>
               }
@@ -225,6 +245,39 @@ import { I18nService } from './i18n';
     .tag-pill:hover {
       background: var(--accent);
       color: #fff;
+    }
+    .char-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 2px;
+      cursor: pointer;
+      user-select: none;
+      line-height: 1.3;
+      white-space: nowrap;
+    }
+    .char-badge.badge-book {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+    .char-badge.badge-course {
+      background: #e0e7ff;
+      color: #3730a3;
+      border: 1px solid #c7d2fe;
+    }
+    .char-badge:hover {
+      filter: brightness(0.95);
+    }
+    .char-edit-select {
+      font-family: inherit;
+      font-size: 11px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 1px 4px;
     }
     .row.done .title { text-decoration: line-through; color: var(--muted); }
     .row.cancelled .title { text-decoration: line-through; color: var(--muted); font-style: italic; }
@@ -436,6 +489,7 @@ export class TaskItem {
   private popup = inject(PopupService);
   readonly i18n = inject(I18nService);
   readonly editing = signal(false);
+  readonly editChar = signal<string>('book');
   readonly adding = signal(false);
   readonly dropZone = signal<'before' | 'after' | 'inside' | null>(null);
   readonly currentStatusName = computed(() =>
@@ -443,6 +497,11 @@ export class TaskItem {
 
   readonly parsedTags = computed(() =>
     (this.task().tags || '').split(',').map((t) => t.trim().toLowerCase().replace(/^#/, '')).filter(Boolean));
+
+  startEdit() {
+    this.editChar.set(this.task().characteristic || 'book');
+    this.editing.set(true);
+  }
 
   onTagClick(tag: string) {
     this.store.selectedTag.set(tag);
@@ -462,6 +521,18 @@ export class TaskItem {
     return iso.replace('T', ' ').slice(0, 16);
   }
 
+  formatCharLabel(c?: string | null): string {
+    const val = (c || 'book').trim().toLowerCase();
+    if (val === 'book') return '📖 ' + this.i18n.t().charBook;
+    if (val === 'course') return '🎓 ' + this.i18n.t().charCourse;
+    return '🔖 ' + val;
+  }
+
+  onCharClick(c: string) {
+    const current = this.store.selectedChar();
+    this.store.selectedChar.set(current === c ? null : c);
+  }
+
   /** Tapping the container opens the task, unless an interactive control was hit. */
   onRowClick(e: MouseEvent) {
     if ((e.target as HTMLElement).closest('button,select,input,form,app-progress a,.grip')) return;
@@ -479,6 +550,12 @@ export class TaskItem {
     if (title && title !== this.task().title) patch.title = title;
     const cleanDue = dueAt ? dueAt : null;
     if (cleanDue !== (this.task().dueAt ?? null)) patch.dueAt = cleanDue;
+    if (this.task().rootKind === 'book' && this.task().parentId === null && this.store.isAdmin()) {
+      const charVal = this.editChar();
+      if (charVal && charVal !== (this.task().characteristic || 'book')) {
+        patch.characteristic = charVal;
+      }
+    }
     if (Object.keys(patch).length) this.store.updateTask(this.task().id, patch);
     this.editing.set(false);
   }

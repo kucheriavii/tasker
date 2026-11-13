@@ -23,6 +23,8 @@ export interface TaskRow {
   /** Optional deadline (ISO datetime string YYYY-MM-DDTHH:mm) */
   dueAt: string | null;
   tags: string;
+  /** Characteristic for books & courses: 'book', 'course', or custom */
+  characteristic?: string;
   userId?: string | null;
   imageIds: string[];
 }

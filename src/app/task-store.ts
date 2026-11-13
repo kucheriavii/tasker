@@ -83,9 +83,23 @@ export class TaskStore {
   readonly books = computed<Task[]>(() =>
     this.allRoots().filter((t) => t.kind === 'book'));
 
-  /** Book search and tag filter signals */
+  /** Book search and filter signals */
   readonly bookSearch = signal<string>('');
   readonly selectedTag = signal<string | null>(null);
+  readonly selectedChar = signal<string | null>(null);
+
+  /** All unique characteristics across all active books (with defaults book & course) */
+  readonly allCharacteristics = computed<string[]>(() => {
+    const list: string[] = ['course', 'book'];
+    const custom = new Set<string>();
+    for (const b of this.books()) {
+      const c = (b.characteristic || 'book').trim().toLowerCase();
+      if (c && c !== 'book' && c !== 'course') {
+        custom.add(c);
+      }
+    }
+    return [...list, ...Array.from(custom).sort()];
+  });
 
   /** All unique tags across all active books */
   readonly allBookTags = computed<string[]>(() => {
@@ -101,13 +115,18 @@ export class TaskStore {
     return Array.from(set).sort();
   });
 
-  /** Filtered books based on search query and selected tag */
+  /** Filtered books based on search query, selected tag, and characteristic */
   readonly filteredBooks = computed<Task[]>(() => {
     const list = this.books();
     const q = this.bookSearch().trim().toLowerCase();
     const tag = this.selectedTag()?.trim().toLowerCase();
-    if (!q && !tag) return list;
+    const char = this.selectedChar()?.trim().toLowerCase();
+    if (!q && !tag && !char) return list;
     return list.filter((b) => {
+      if (char) {
+        const bChar = (b.characteristic || 'book').trim().toLowerCase();
+        if (bChar !== char) return false;
+      }
       if (tag) {
         const bTags = (b.tags || '').split(',').map((t) => t.trim().toLowerCase().replace(/^#/, ''));
         if (!bTags.includes(tag)) return false;
@@ -116,7 +135,8 @@ export class TaskStore {
         const inTitle = b.title.toLowerCase().includes(q);
         const inDesc = (b.description || '').toLowerCase().includes(q);
         const inTags = (b.tags || '').toLowerCase().includes(q);
-        if (!inTitle && !inDesc && !inTags) return false;
+        const inChar = (b.characteristic || '').toLowerCase().includes(q);
+        if (!inTitle && !inDesc && !inTags && !inChar) return false;
       }
       return true;
     });
@@ -293,11 +313,11 @@ export class TaskStore {
     await this.refresh();
   }
 
-  addTask(parentId: string | null, title: string, kind: 'task' | 'book' = 'task', dueAt: string | null = null, tags = '') {
+  addTask(parentId: string | null, title: string, kind: 'task' | 'book' = 'task', dueAt: string | null = null, tags = '', characteristic = '') {
     if (!title.trim()) return;
-    return this.call(firstValueFrom(this.http.post('/api/tasks', { parentId, title, kind, dueAt: dueAt || null, tags: tags || '' }, this.reqHeaders())));
+    return this.call(firstValueFrom(this.http.post('/api/tasks', { parentId, title, kind, dueAt: dueAt || null, tags: tags || '', characteristic: characteristic || '' }, this.reqHeaders())));
   }
-  updateTask(id: string, patch: Partial<Pick<Task, 'title' | 'description' | 'statusId' | 'collapsed' | 'kind' | 'dueAt' | 'tags'>>) {
+  updateTask(id: string, patch: Partial<Pick<Task, 'title' | 'description' | 'statusId' | 'collapsed' | 'kind' | 'dueAt' | 'tags' | 'characteristic'>>) {
     return this.call(firstValueFrom(this.http.patch(`/api/tasks/${id}`, patch, this.reqHeaders())));
   }
   /** Drag & Drop: reorder before/after targetId, or move inside targetId as a subtask. */

@@ -128,10 +128,12 @@ export async function initDb() {
         kind TEXT NOT NULL DEFAULT 'task',
         due_at TEXT,
         tags TEXT NOT NULL DEFAULT '',
+        characteristic TEXT NOT NULL DEFAULT '',
         user_id TEXT
       );
       ALTER TABLE tasks ADD COLUMN IF NOT EXISTS tags TEXT NOT NULL DEFAULT '';
       ALTER TABLE tasks ADD COLUMN IF NOT EXISTS user_id TEXT;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS characteristic TEXT NOT NULL DEFAULT '';
       CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id);
       CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
       CREATE TABLE IF NOT EXISTS images (
@@ -196,12 +198,21 @@ export async function initDb() {
         }
       }
     }
+    // Auto-migrate existing root books to initial characteristics
+    await pool.query(`
+      UPDATE tasks SET characteristic='course'
+      WHERE parent_id IS NULL AND kind='book' AND (characteristic IS NULL OR characteristic='')
+        AND (LOWER(title) LIKE '%masterclass%' OR LOWER(title) LIKE '%python%' OR LOWER(title) LIKE '%курс%');
+      UPDATE tasks SET characteristic='book'
+      WHERE parent_id IS NULL AND kind='book' AND (characteristic IS NULL OR characteristic='');
+    `);
     return { isPg: true, target: databaseUrl.replace(/:[^:@]+@/, ':***@') };
   }
 
   // SQLite fallback
   mkdirSync(dataDir, { recursive: true });
   sqliteDb = new DatabaseSync(join(dataDir, 'tasker.db'));
+  try { sqliteDb.exec("ALTER TABLE tasks ADD COLUMN characteristic TEXT NOT NULL DEFAULT ''"); } catch {}
   sqliteDb.exec(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
@@ -222,6 +233,7 @@ export async function initDb() {
       kind TEXT NOT NULL DEFAULT 'task',
       due_at TEXT,
       tags TEXT NOT NULL DEFAULT '',
+      characteristic TEXT NOT NULL DEFAULT '',
       user_id TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id);
@@ -272,6 +284,16 @@ export async function initDb() {
   `);
   try { sqliteDb.exec("ALTER TABLE tasks ADD COLUMN tags TEXT NOT NULL DEFAULT ''"); } catch {}
   try { sqliteDb.exec("ALTER TABLE tasks ADD COLUMN user_id TEXT"); } catch {}
+  try { sqliteDb.exec("ALTER TABLE tasks ADD COLUMN characteristic TEXT NOT NULL DEFAULT ''"); } catch {}
+  try {
+    sqliteDb.exec(`
+      UPDATE tasks SET characteristic='course'
+      WHERE parent_id IS NULL AND kind='book' AND (characteristic IS NULL OR characteristic='')
+        AND (LOWER(title) LIKE '%masterclass%' OR LOWER(title) LIKE '%python%' OR LOWER(title) LIKE '%курс%');
+      UPDATE tasks SET characteristic='book'
+      WHERE parent_id IS NULL AND kind='book' AND (characteristic IS NULL OR characteristic='');
+    `);
+  } catch {}
   try { sqliteDb.exec("CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id)"); } catch {}
 
   const stCount = sqliteDb.prepare('SELECT COUNT(*) c FROM statuses').get().c;

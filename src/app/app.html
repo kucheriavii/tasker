@@ -349,6 +349,36 @@
         <p class="desc">{{ t.description || i18n.t().emptyDesc }}</p>
       }
 
+      @if (t.rootKind === 'book' && t.parentId === null) {
+        <h2>{{ i18n.t().charHeading }}</h2>
+        <div class="char-edit-row">
+          @if (store.isAdmin()) {
+            <div class="char-options">
+              <button type="button" class="char-btn" [class.active]="(t.characteristic || 'book') === 'course'"
+                (click)="store.updateTask(t.id, { characteristic: 'course' })">
+                🎓 {{ i18n.t().charCourse }}
+              </button>
+              <button type="button" class="char-btn" [class.active]="(t.characteristic || 'book') === 'book'"
+                (click)="store.updateTask(t.id, { characteristic: 'book' })">
+                📖 {{ i18n.t().charBook }}
+              </button>
+              @if (t.characteristic && t.characteristic !== 'book' && t.characteristic !== 'course') {
+                <button type="button" class="char-btn active">
+                  🔖 {{ t.characteristic }}
+                </button>
+              }
+              <button type="button" class="char-btn custom-char-btn" (click)="promptCustomChar(t.id, t.characteristic)">
+                + {{ i18n.t().customCharBtn }}
+              </button>
+            </div>
+          } @else {
+            <span class="char-badge large" [class.badge-course]="(t.characteristic || 'book') === 'course'" [class.badge-book]="(t.characteristic || 'book') === 'book'">
+              {{ formatCharName(t.characteristic) }}
+            </span>
+          }
+        </div>
+      }
+
       <h2>{{ i18n.t().tagsHeading }}
         @if (store.isAdmin()) {
           @if (editTags()) { <button class="ok" (click)="saveTags(t.id, tagsInput()?.nativeElement?.value ?? t.tags)">{{ i18n.t().ok }}</button> }
@@ -443,6 +473,24 @@
           }
         </div>
 
+        <!-- Characteristic Filter Chips -->
+        <div class="char-filter-row">
+          <button class="char-chip" [class.active]="store.selectedChar() === null" (click)="store.selectedChar.set(null)">
+            {{ i18n.t().allTypes }} ({{ store.books().length }})
+          </button>
+          @for (c of store.allCharacteristics(); track c) {
+            <button class="char-chip" [class.active]="store.selectedChar() === c"
+              (click)="store.selectedChar.set(store.selectedChar() === c ? null : c)">
+              {{ formatCharName(c) }} ({{ countBooksWithChar(c) }})
+            </button>
+          }
+          @if (store.isAdmin()) {
+            <button class="char-chip add-char-btn" (click)="adminAddCustomChar()" [title]="i18n.t().addCustomChar">
+              + {{ i18n.t().customCharBtn }}
+            </button>
+          }
+        </div>
+
         @if (store.allBookTags().length) {
           <div class="tag-chips">
             <button class="tag-chip" [class.active]="store.selectedTag() === null" (click)="store.selectedTag.set(null)">
@@ -457,10 +505,10 @@
           </div>
         }
 
-        @if (store.bookSearch() || store.selectedTag()) {
+        @if (store.bookSearch() || store.selectedTag() || store.selectedChar()) {
           <div class="filter-status">
             <span class="hint">{{ i18n.t().foundBooksCount(store.filteredBooks().length) }}</span>
-            <button class="clear-filter-btn" (click)="store.bookSearch.set(''); store.selectedTag.set(null)">
+            <button class="clear-filter-btn" (click)="store.bookSearch.set(''); store.selectedTag.set(null); store.selectedChar.set(null)">
               ✕ {{ i18n.t().clearFilter }}
             </button>
           </div>
@@ -468,7 +516,17 @@
       </div>
 
       @if (store.isAdmin()) {
-        <form class="add new-row" (submit)="$event.preventDefault(); store.addTask(null, bTitle.value, 'book', bDue.value || null, bTags.value); bTitle.value = ''; bDue.value = ''; bTags.value = ''">
+        <form class="add new-row book-add-row" (submit)="$event.preventDefault(); store.addTask(null, bTitle.value, 'book', bDue.value || null, bTags.value, bChar.value); bTitle.value = ''; bDue.value = ''; bTags.value = ''">
+          <select #bChar class="char-select" [title]="i18n.t().charHeading" (change)="onAddCharChange($event, bChar)">
+            <option value="course" selected>🎓 {{ i18n.t().charCourse }}</option>
+            <option value="book">📖 {{ i18n.t().charBook }}</option>
+            @for (c of store.allCharacteristics(); track c) {
+              @if (c !== 'book' && c !== 'course') {
+                <option [value]="c">🔖 {{ c }}</option>
+              }
+            }
+            <option value="__custom__">+ {{ i18n.t().addCustomChar }}</option>
+          </select>
           <input #bTitle class="grow" [placeholder]="i18n.t().newBookPlaceholder" />
           <input #bTags class="tags-in" [placeholder]="i18n.t().newBookTagsPlaceholder" />
           <input #bDue type="datetime-local" class="due-pick" [title]="i18n.t().deadlineTitle" />

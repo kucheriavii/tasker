@@ -1512,6 +1512,8 @@ const ROADMAP_SCHEMA = {
     title: { type: 'STRING' },
     description: { type: 'STRING' },
     targetRole: { type: 'STRING' },
+    category: { type: 'STRING' },
+    icon: { type: 'STRING' },
     branches: { type: 'ARRAY', items: { type: 'STRING' } },
     nodes: {
       type: 'ARRAY',
@@ -1916,11 +1918,12 @@ export function registerRoadmap({ route, send, readJson, q, tx, getUserId, isAdm
       }
     }
 
+    let matched = null;
     // Fallback template if Gemini fails or no key
     if (!generated || !Array.isArray(generated.nodes) || generated.nodes.length === 0) {
       // Find closest template or pick DevOps
       const lower = prompt.toLowerCase();
-      let matched = DEVOPS_ROADMAP_TEMPLATE;
+      matched = DEVOPS_ROADMAP_TEMPLATE;
       if (lower.includes('front') || lower.includes('react') || lower.includes('веб') || lower.includes('web')) matched = FRONTEND_ROADMAP_TEMPLATE;
       else if (lower.includes('back') || lower.includes('node') || lower.includes('сервер') || lower.includes('api')) matched = BACKEND_ROADMAP_TEMPLATE;
       else if (lower.includes('qa') || lower.includes('тест') || lower.includes('playwright') || lower.includes('автоматиз')) matched = QA_AUTOMATION_ROADMAP_TEMPLATE;
@@ -1931,6 +1934,8 @@ export function registerRoadmap({ route, send, readJson, q, tx, getUserId, isAdm
         title: `${matched.title} (${prompt})`,
         description: matched.description,
         targetRole: prompt,
+        category: matched.category,
+        icon: matched.icon,
         branches: matched.branches,
         nodes: matched.nodes,
       };
@@ -1946,7 +1951,7 @@ export function registerRoadmap({ route, send, readJson, q, tx, getUserId, isAdm
     const nodes = refreshSkillStates(cleanNodes);
 
     const category = String(generated.category || matched?.category || 'Загальні').trim();
-    const icon = String(generated.icon || matched?.icon || '✨').trim();
+    const icon = String(generated.icon || matched?.icon || '🗺️').trim();
     const nodesJson = JSON.stringify({
       category,
       icon,
